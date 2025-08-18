@@ -5,14 +5,14 @@ class Day0QuizLog {
 
     // Left box
     this.x1 = 135;
-    this.y1 = 105;
+    this.y1 = 110;
     this.w1 = 345;
-    this.h1 = 300;
+    this.h1 = 450;
     // Right box
     this.x2 = 546;
-    this.y2 = 105;
+    this.y2 = 110;
     this.w2 = 345;
-    this.h2 = 300;
+    this.h2 = 450;
 
     this.notebookContent = [
       "Day 0 - Question:",
@@ -25,20 +25,14 @@ class Day0QuizLog {
     this.fontSize = 20;
     this.leading = 30;
 
-    // Input panel
-    this.panelX = 87;
-    this.panelY = 420;
-    this.panelW = 850;
-    this.panelH = 120;
-    this.promptY = 438;
-    this.inputW = 720;
-    this.inputH = 40;
-    this.inputX = 0;
-    this.inputY = 0;
+    // Input element (will be positioned on the next available line)
     this.input = null;
-    this.placeholder = "write whatever you want to ask....";
+    this.inputPaddingX = 5; // left/right padding inside column
+    this.inputH = 26; // height of DOM input (fits a line)
+    this.placeholderBase = "write whatever you want to ask....";
 
     this.questionCount = 0; // counter for Qn
+    this._justSubmitted = false; // tiny flag to hide input right after submit
   }
 
   preload() {
@@ -47,23 +41,10 @@ class Day0QuizLog {
   }
 
   setup() {
-    // Position input
-    this.inputX = this.panelX + (this.panelW - this.inputW) / 2 - 10;
-    this.inputY = this.panelY + 50;
-
+    // Create input once; we’ll position/resize every frame
     this.input = createInput("");
-    this.input.size(this.inputW, this.inputH);
-    this.input.position(this.inputX, this.inputY);
-    this.input.attribute("placeholder", this.placeholder);
-
-    // Style
-    this.input.style("font-family", "Bradley Hand, cursive");
-    this.input.style("font-size", "18px");
-    this.input.style("padding", "6px 10px");
-    this.input.style("border", "2px solid #000");
-    this.input.style("border-radius", "8px");
-    this.input.style("outline", "none");
-    this.input.style("background", "#ffffff");
+    this.input.attribute("placeholder", this._placeholderText());
+    this.input.class("notebook-input"); // <-- attach CSS class
 
     // Submit with Enter
     this.input.elt.addEventListener("keydown", (e) => {
@@ -72,6 +53,13 @@ class Day0QuizLog {
         if (val.length > 0) {
           this.addLine(val);
           this.input.value("");
+          // Briefly hide so it looks like it disappears then reappears on the new line
+          this._justSubmitted = true;
+          this.input.hide();
+          setTimeout(() => {
+            this._justSubmitted = false;
+            this.input.show();
+          }, 30); // one frame-ish
         }
       }
     });
@@ -81,33 +69,15 @@ class Day0QuizLog {
     this.questionCount++;
     const label = `Q${this.questionCount}: ${text}`;
     this.notebookContent.push(label);
-  }
-
-  mousePressed() {
-    // Focus when clicking the panel
-    if (
-      this._inRect(
-        mouseX,
-        mouseY,
-        this.panelX,
-        this.panelY,
-        this.panelW,
-        this.panelH
-      )
-    ) {
-      this.input.elt.focus();
-    }
+    this.input.attribute("placeholder", this._placeholderText());
   }
 
   update() {
-    // Draw background first
-    if (this.bg) {
-      image(this.bg, 0, 0, width, height);
-    } else {
-      background(220);
-    }
+    // Background
+    if (this.bg) image(this.bg, 0, 0, width, height);
+    else background(220);
 
-    // Styles each frame (so other code can’t mess it up)
+    // Styles each frame for drawing
     if (this.userFont) textFont(this.userFont);
     textSize(this.fontSize);
     textLeading(this.leading);
@@ -117,21 +87,57 @@ class Day0QuizLog {
     // 1) Wrap content to lines for a given width (use left-box width)
     const wrappedLines = this._wrapParagraphs(this.notebookContent, this.w1);
 
-    // 2) Split lines into columns by how many fit per box
+    // 2) Split into two columns by how many fit per box
     const maxLinesPerBox = Math.floor(this.h1 / this.leading);
     const col1 = wrappedLines.slice(0, maxLinesPerBox);
-    const col2 = wrappedLines.slice(maxLinesPerBox, maxLinesPerBox * 2); // clip remainder
+    const col2 = wrappedLines.slice(maxLinesPerBox, maxLinesPerBox * 2);
 
-    // 3) Draw columns
+    // 3) Draw the columns
     this._drawLines(col1, this.x1, this.y1, this.w1, this.h1);
     this._drawLines(col2, this.x2, this.y2, this.w2, this.h2);
 
-    // 4) Draw input panel & prompt
-    this._drawInputPanel();
+    // 4) Position the input at the next available line
+    this._positionInputAtNextLine(wrappedLines.length, maxLinesPerBox);
+  }
+
+  // ---- Compute where the input should go (Qn position) ----
+  _positionInputAtNextLine(totalLines, maxLinesPerBox) {
+    // If the last submission just happened, keep it hidden for a frame
+    if (this._justSubmitted) return;
+
+    const colWidth = this.w1;
+    const colPad = this.inputPaddingX;
+    const nextIndex = totalLines; // next line index in the flow
+    const maxLinesAll = maxLinesPerBox * 2;
+
+    if (nextIndex >= maxLinesAll) {
+      // No space left in both boxes—hide input
+      this.input.hide();
+      return;
+    }
+
+    // Determine column and row within that column
+    let x, y, w;
+    if (nextIndex < maxLinesPerBox) {
+      // Left column
+      x = this.x1 + colPad;
+      y = this.y1 + nextIndex * this.leading + (this.leading - this.inputH) / 2;
+      w = colWidth - 2 * colPad;
+    } else {
+      // Right column
+      const row = nextIndex - maxLinesPerBox;
+      x = this.x2 + colPad;
+      y = this.y2 + row * this.leading + (this.leading - this.inputH) / 2;
+      w = this.w2 - 2 * colPad;
+    }
+
+    // Show and place input
+    this.input.show();
+    this.input.position(x - 15, y - 20);
+    this.input.size(w, this.inputH);
   }
 
   // ---- Text layout helpers ----
-
   _wrapParagraphs(paragraphs, maxWidth) {
     if (this.userFont) textFont(this.userFont);
     textSize(this.fontSize);
@@ -191,31 +197,8 @@ class Day0QuizLog {
     }
   }
 
-  _drawInputPanel() {
-    push();
-    noStroke();
-    fill(255, 255, 255, 230);
-    rect(this.panelX, this.panelY, this.panelW, this.panelH, 12);
-
-    stroke(0);
-    strokeWeight(2);
-    noFill();
-    rect(this.panelX, this.panelY, this.panelW, this.panelH, 12);
-
-    if (this.userFont) textFont(this.userFont);
-    textSize(22);
-    noStroke();
-    fill(0);
-    textAlign(CENTER, CENTER);
-    const cx = this.panelX + this.panelW / 2;
-    text("What should I ask....", cx, this.promptY);
-    pop();
-
-    this.input.position(this.inputX, this.inputY);
-    this.input.size(this.inputW, this.inputH);
-  }
-
-  _inRect(px, py, rx, ry, rw, rh) {
-    return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
+  _placeholderText() {
+    const next = this.questionCount + 1;
+    return `Q${next}: ${this.placeholderBase}`;
   }
 }

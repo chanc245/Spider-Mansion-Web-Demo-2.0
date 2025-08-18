@@ -6,3 +6,21 @@ body {
 canvas {
   display: block;
 }
+
+.notebook-input {
+  font-family: "Bradley Hand", cursive;
+  font-size: 20px;
+  padding: 10px 10px;
+  border: 0px solid #000;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #000000;
+
+  outline: none; /* remove default focus outline */
+  box-sizing: border-box;
+}
+
+.notebook-input::placeholder {
+  color: #777; /* style the placeholder text */
+  font-style: italic;
+}

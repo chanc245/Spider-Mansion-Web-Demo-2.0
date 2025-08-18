@@ -11,10 +11,9 @@ function setup() {
 }
 
 function draw() {
-  background(220);
   logView.update();
 }
 
 function mousePressed() {
-  logView.mousePressed();
+  if (logView && logView.mousePressed) logView.mousePressed();
 }

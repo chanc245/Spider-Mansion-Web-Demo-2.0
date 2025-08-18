@@ -1,50 +1,46 @@
 class Day0QuizLog {
   constructor() {
-    // Background
-    this.bg = null;
-
-    // Left & Right boxes
+    // Layout
     this.x1 = 135;
     this.y1 = 110;
     this.w1 = 345;
-    this.h1 = 450;
+    this.h1 = 450; // left box
     this.x2 = 546;
     this.y2 = 110;
     this.w2 = 345;
-    this.h2 = 450;
+    this.h2 = 450; // right box
 
-    // Content (persisted)
+    // Content & style
     this.notebookContent = [
       "Day 0 - Question:",
       "I built a house, but the guests didn’t realize it was there and accidentally entered. Afterward, the guests, who were trapped in the house, became my dinner.",
       "Who am I?",
       "*********** QnA Log ***********",
     ];
-
-    // Text style
     this.userFont = null;
     this.fontSize = 20;
     this.leading = 30;
 
-    // Input (DOM) — positioned on the next available line of the current page
+    // Input
     this.input = null;
-    this.inputPaddingX = 5;
     this.inputH = 26;
+    this.inputPaddingX = 5;
     this.placeholderBase = "write whatever you want to ask....";
-
-    // Qn counters / flags
-    this.questionCount = 0; // how many user Qn's added (limit 20)
-    this.inputLimit = 20; // hard cap
+    this.questionCount = 0;
+    this.inputLimit = 20;
     this._justSubmitted = false;
 
-    // Pagination: page 0 is original; we add page starts as content grows
-    this.page = 0; // current page index (0-based)
-    this.pageStarts = [0]; // wrapped-line start index for each page
-    this._maxLinesPerBox = 0; // computed in setup
+    // Paging
+    this.page = 0; // 0-based
+    this.pageStarts = [0]; // start wrapped-line index per page
+    this._maxLinesPerBox = 0;
 
-    // Nav buttons (left = prev/smaller, right = next/bigger)
-    this.leftBtn = { x: 105, y: 527, w: 50, h: 50 }; // previous page
-    this.rightBtn = { x: 870, y: 527, w: 50, h: 50 }; // next page
+    // Buttons (prev / next)
+    this.leftBtn = { x: 105, y: 527, w: 50, h: 50 };
+    this.rightBtn = { x: 870, y: 527, w: 50, h: 50 };
+
+    // Background
+    this.bg = null;
   }
 
   preload() {
@@ -53,170 +49,105 @@ class Day0QuizLog {
   }
 
   setup() {
-    // capacity in lines per box
     this._maxLinesPerBox = Math.floor(this.h1 / this.leading);
 
-    // Create input (single-line input; CSS styles via .notebook-input)
     this.input = createInput("");
     this.input.attribute("placeholder", this._placeholderText());
     this.input.class("notebook-input");
 
-    // Enter to submit
     this.input.elt.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
-        const val = this.input.value().trim();
-        if (val.length > 0) {
-          this.addLine(val);
-          this.input.value("");
-
-          this._justSubmitted = true;
-          this.input.hide();
-          setTimeout(() => {
-            this._justSubmitted = false;
-            if (this.questionCount < this.inputLimit) this.input.show();
-          }, 30);
-        }
+        const v = this.input.value().trim();
+        if (!v) return;
+        this._addQuestion(v);
+        this.input.value("");
+        this._snapInputSoon();
       }
     });
   }
 
-  // Add a new Qn line (respects 20-question limit)
-  addLine(text) {
-    if (this.questionCount >= this.inputLimit) {
-      this.input.attribute("placeholder", "Q limit reached (20).");
-      this.input.value("");
-      this.input.hide();
-      return;
-    }
-    this.questionCount++;
-    const line = `Q${this.questionCount}: ${text}`;
-    this.notebookContent.push(line);
-    this.input.attribute("placeholder", this._placeholderText());
-  }
-
   update() {
-    // Background
     if (this.bg) image(this.bg, 0, 0, width, height);
     else background(220);
 
-    // Draw style
     if (this.userFont) textFont(this.userFont);
     textSize(this.fontSize);
     textLeading(this.leading);
     fill(0);
     noStroke();
 
-    // Wrap ALL content into lines (using left-box width)
-    const wrappedLines = this._wrapParagraphs(this.notebookContent, this.w1);
-    const pageCapacity = this._maxLinesPerBox * 2;
+    const wrapped = this._wrapParagraphs(this.notebookContent, this.w1);
+    const capPerPage = this._maxLinesPerBox * 2;
 
-    // Ensure current page start exists
     if (!Number.isInteger(this.pageStarts[this.page])) {
-      this.pageStarts[this.page] = wrappedLines.length;
+      this.pageStarts[this.page] = wrapped.length;
     }
 
-    // Only create a new page if we're on the LAST page and it's full (>=)
-    const isLastPage = this.page === this.pageStarts.length - 1;
-    const currentStartIdx = this.pageStarts[this.page];
-    const pageLinesFromCurrentStart = wrappedLines.slice(currentStartIdx);
-    if (isLastPage && pageLinesFromCurrentStart.length >= pageCapacity) {
-      // Start a brand new page that begins after all current lines
-      this.pageStarts.push(wrappedLines.length);
-      this.page = this.pageStarts.length - 1; // jump to new, clean page
-    }
-
-    // Compute lines belonging to the active page (bounded by next page start)
     const curStart = this.pageStarts[this.page];
+    const linesFromCur = wrapped.slice(curStart);
+
+    // If last page is full, start next page at the exact overflow point
+    const isLastPage = this.page === this.pageStarts.length - 1;
+    if (isLastPage && linesFromCur.length > capPerPage) {
+      this.pageStarts.push(curStart + capPerPage);
+      this.page = this.pageStarts.length - 1;
+    }
+
+    const thisStart = this.pageStarts[this.page];
     const nextStart =
       this.page + 1 < this.pageStarts.length
         ? this.pageStarts[this.page + 1]
-        : wrappedLines.length;
-    const curPageLines = wrappedLines.slice(curStart, nextStart);
+        : wrapped.length;
+    const curPageLines = wrapped.slice(thisStart, nextStart);
 
-    // Draw page columns (clean page draws nothing until new inputs)
     this._drawColumns(curPageLines);
 
-    // Input positioning / visibility:
-    // show input ONLY on the last page (earlier pages are read-only)
     if (this.page === this.pageStarts.length - 1) {
-      this._positionInputForCurrentPage(curPageLines.length);
+      this._positionInput(curPageLines.length);
     } else {
       this.input.hide();
     }
 
-    // ---- Navigation buttons (1-based labels) ----
     const hasPrev = this.page - 1 >= 0;
     const hasNext = this.page + 1 < this.pageStarts.length;
-
-    // Left button = previous (smaller page number)
-    if (hasPrev) {
-      this._drawNavButton(
-        this.leftBtn.x,
-        this.leftBtn.y,
-        this.leftBtn.w,
-        this.leftBtn.h,
-        this.page - 1 + 1 // 1-based label
-      );
-    }
-    // Right button = next (bigger page number)
-    if (hasNext) {
-      this._drawNavButton(
-        this.rightBtn.x,
-        this.rightBtn.y,
-        this.rightBtn.w,
-        this.rightBtn.h,
-        this.page + 1 + 1 // 1-based label
-      );
-    }
+    if (hasPrev) this._drawNavButton(this.leftBtn, this.page - 1 + 1);
+    if (hasNext) this._drawNavButton(this.rightBtn, this.page + 1 + 1);
   }
 
-  // Handle clicks for nav buttons
   mousePressed() {
     const hasPrev = this.page - 1 >= 0;
     const hasNext = this.page + 1 < this.pageStarts.length;
 
-    // Left button → previous page
-    if (
-      hasPrev &&
-      this._pointInRect(
-        mouseX,
-        mouseY,
-        this.leftBtn.x,
-        this.leftBtn.y,
-        this.leftBtn.w,
-        this.leftBtn.h
-      )
-    ) {
-      this.page -= 1;
+    if (hasPrev && this._hit(this.leftBtn)) {
+      this.page--;
       this._snapInput();
       return;
     }
-
-    // Right button → next page
-    if (
-      hasNext &&
-      this._pointInRect(
-        mouseX,
-        mouseY,
-        this.rightBtn.x,
-        this.rightBtn.y,
-        this.rightBtn.w,
-        this.rightBtn.h
-      )
-    ) {
-      this.page += 1;
+    if (hasNext && this._hit(this.rightBtn)) {
+      this.page++;
       this._snapInput();
       return;
     }
   }
 
-  // Small helper to hide/show input so its position updates cleanly
-  _snapInput() {
+  // --- Helpers ---
+
+  _addQuestion(text) {
+    if (this.questionCount >= this.inputLimit) {
+      this.input.attribute("placeholder", "Q limit reached (20).");
+      this.input.hide();
+      return;
+    }
+    this.questionCount++;
+    this.notebookContent.push(`Q${this.questionCount}: ${text}`);
+    this.input.attribute("placeholder", this._placeholderText());
+  }
+
+  _snapInputSoon() {
     this._justSubmitted = true;
     this.input.hide();
     setTimeout(() => {
       this._justSubmitted = false;
-      // only show if we're on the last page and under the limit
       if (
         this.page === this.pageStarts.length - 1 &&
         this.questionCount < this.inputLimit
@@ -226,146 +157,142 @@ class Day0QuizLog {
     }, 30);
   }
 
-  // ----- Draw two columns for current page -----
-  _drawColumns(linesOnPage) {
-    const col1 = linesOnPage.slice(0, this._maxLinesPerBox);
-    const col2 = linesOnPage.slice(
-      this._maxLinesPerBox,
-      this._maxLinesPerBox * 2
-    );
+  _snapInput() {
+    this._justSubmitted = true;
+    this.input.hide();
+    setTimeout(() => {
+      this._justSubmitted = false;
+      if (
+        this.page === this.pageStarts.length - 1 &&
+        this.questionCount < this.inputLimit
+      ) {
+        this.input.show();
+      }
+    }, 30);
+  }
 
-    this._drawLines(col1, this.x1, this.y1, this.w1, this.h1);
-    this._drawLines(col2, this.x2, this.y2, this.w2, this.h2);
+  _drawColumns(lines) {
+    const cap = this._maxLinesPerBox;
+    this._drawLines(lines.slice(0, cap), this.x1, this.y1, this.w1, this.h1);
+    this._drawLines(
+      lines.slice(cap, cap * 2),
+      this.x2,
+      this.y2,
+      this.w2,
+      this.h2
+    );
   }
 
   _drawLines(lines, x, y, w, h) {
-    const cap = Math.floor(h / this.leading);
-    const drawCount = Math.min(cap, lines.length);
-    for (let i = 0; i < drawCount; i++) {
-      const ly = y + i * this.leading;
-      text(lines[i], x, ly, w, this.leading);
-    }
+    const max = Math.min(Math.floor(h / this.leading), lines.length);
+    for (let i = 0; i < max; i++)
+      text(lines[i], x, y + i * this.leading, w, this.leading);
   }
 
-  // ----- Input positioning (left → right for the last page) -----
-  _positionInputForCurrentPage(usedLinesOnPage) {
-    if (this._justSubmitted) return;
-
-    if (this.questionCount >= this.inputLimit) {
+  _positionInput(usedLines) {
+    if (this._justSubmitted || this.questionCount >= this.inputLimit) {
       this.input.hide();
       return;
     }
 
     const cap = this._maxLinesPerBox;
-    if (usedLinesOnPage >= cap * 2) {
-      // full (pagination creation handled above), hide as safeguard
+    if (usedLines >= cap * 2) {
       this.input.hide();
       return;
     }
 
     let boxX, boxY, boxW, row;
-    if (usedLinesOnPage < cap) {
-      // Left
-      row = usedLinesOnPage;
+    if (usedLines < cap) {
+      // left
+      row = usedLines;
       boxX = this.x1;
       boxY = this.y1;
       boxW = this.w1;
     } else {
-      // Right
-      row = usedLinesOnPage - cap;
+      // right
+      row = usedLines - cap;
       boxX = this.x2;
       boxY = this.y2;
       boxW = this.w2;
     }
 
-    const colPad = this.inputPaddingX;
-    const w = boxW - 2 * colPad;
+    const w = boxW - 2 * this.inputPaddingX;
     const y = boxY + row * this.leading + (this.leading - this.inputH) / 2;
-    const x = boxX + colPad;
+    const x = boxX + this.inputPaddingX;
 
     this.input.show();
-    this.input.position(x - 15, y - 20); // keep your visual offsets
+    this.input.position(x - 15, y - 20); // keep your visual offset
     this.input.size(w, this.inputH);
   }
 
-  // ----- Buttons -----
-  _drawNavButton(x, y, w, h, label1Based) {
+  _drawNavButton(btn, label1Based) {
     push();
     noStroke();
     fill(255, 255, 255, 230);
-    rect(x, y, w, h, 8);
-
+    rect(btn.x, btn.y, btn.w, btn.h, 8);
     stroke(0);
     strokeWeight(2);
     noFill();
-    rect(x, y, w, h, 8);
-
+    rect(btn.x, btn.y, btn.w, btn.h, 8);
     noStroke();
     fill(0);
     textAlign(CENTER, CENTER);
     textSize(16);
-    text(label1Based, x + w / 2, y + h / 2 + 1);
+    text(label1Based, btn.x + btn.w / 2, btn.y + btn.h / 2 + 1);
     pop();
   }
 
-  // ----- Text wrap helpers -----
   _wrapParagraphs(paragraphs, maxWidth) {
     if (this.userFont) textFont(this.userFont);
     textSize(this.fontSize);
 
-    const lines = [];
-    paragraphs.forEach((para) => {
+    const out = [];
+    for (const para of paragraphs) {
       const words = para.split(/\s+/);
       let line = "";
-
-      words.forEach((word) => {
-        const test = line.length ? line + " " + word : word;
+      for (const word of words) {
+        const test = line ? line + " " + word : word;
         if (textWidth(test) <= maxWidth) {
           line = test;
         } else {
-          if (line.length) lines.push(line);
+          if (line) out.push(line);
           if (textWidth(word) > maxWidth) {
-            const pieces = this._hardBreakWord(word, maxWidth);
-            pieces.forEach((p, i) => {
-              if (i < pieces.length - 1) lines.push(p);
-              else line = p;
-            });
+            for (const chunk of this._hardBreakWord(word, maxWidth))
+              out.push(chunk);
+            line = out.pop(); // last chunk continues
           } else {
             line = word;
           }
         }
-      });
-
-      if (line.length) lines.push(line);
-    });
-
-    return lines;
-  }
-
-  _hardBreakWord(word, maxWidth) {
-    const chars = Array.from(word);
-    let chunk = "";
-    const out = [];
-    chars.forEach((ch) => {
-      const test = chunk + ch;
-      if (textWidth(test) <= maxWidth) {
-        chunk = test;
-      } else {
-        if (chunk.length) out.push(chunk);
-        chunk = ch;
       }
-    });
-    if (chunk.length) out.push(chunk);
+      if (line) out.push(line);
+    }
     return out;
   }
 
-  // ----- Utils -----
-  _pointInRect(px, py, rx, ry, rw, rh) {
-    return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
+  _hardBreakWord(word, maxWidth) {
+    const parts = [];
+    let chunk = "";
+    for (const ch of Array.from(word)) {
+      const test = chunk + ch;
+      if (textWidth(test) <= maxWidth) chunk = test;
+      else {
+        if (chunk) parts.push(chunk);
+        chunk = ch;
+      }
+    }
+    if (chunk) parts.push(chunk);
+    return parts;
   }
 
+  _hit(btn) {
+    return this._inRect(mouseX, mouseY, btn.x, btn.y, btn.w, btn.h);
+  }
+  _inRect(px, py, rx, ry, rw, rh) {
+    return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
+  }
   _placeholderText() {
-    const next = Math.min(this.questionCount + 1, this.inputLimit);
-    return `Q${next}: ${this.placeholderBase}`;
+    const n = Math.min(this.questionCount + 1, this.inputLimit);
+    return `Q${n}: ${this.placeholderBase}`;
   }
 }

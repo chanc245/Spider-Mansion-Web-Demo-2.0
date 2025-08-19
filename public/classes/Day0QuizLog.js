@@ -43,12 +43,14 @@ class Day0QuizLog {
     this._origin = { x: 0, y: 0 };
 
     // Fade state
-    this._wantActive = false; // desired active state (setActive)
+    this._wantActive = false;
     this._alpha = 0; // 0..255
     this._aFrom = 0;
     this._aTo = 0;
     this._aStartMs = 0;
-    this._aDurationMs = 280; // ease duration
+    this._aDurationInMs = 200; // fade-in speed
+    this._aDurationOutMs = 100; // fade-out speed (faster)
+    this._aDurationMs = this._aDurationInMs;
     this._aAnimating = false;
   }
 
@@ -57,7 +59,7 @@ class Day0QuizLog {
     if (want === this._wantActive) return;
     this._wantActive = want;
     this._startFade(want ? 255 : 0);
-    if (!want && this.input) this.input.hide(); // hide early on fade-out
+    if (!want && this.input) this.input.hide();
   }
 
   preload() {
@@ -70,7 +72,7 @@ class Day0QuizLog {
     this.input = createInput("");
     this.input.attribute("placeholder", this._placeholderText());
     this.input.class("notebook-input");
-    this.input.hide(); // start hidden; fade will reveal
+    this.input.hide();
 
     this.input.elt.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -83,12 +85,11 @@ class Day0QuizLog {
     });
   }
 
-  // Draw over the notebook image at its origin (call every frame)
   render(originX = 0, originY = 0) {
     this._origin.x = originX;
     this._origin.y = originY;
 
-    // advance fade
+    // Animate fade
     if (this._aAnimating) {
       const t = constrain(
         (millis() - this._aStartMs) / this._aDurationMs,
@@ -100,7 +101,7 @@ class Day0QuizLog {
       if (t >= 1) this._aAnimating = false;
     }
 
-    // If fully invisible and not animating, skip drawing & input logic entirely
+    // Skip drawing if fully hidden and not animating
     if (!this._aAnimating && this._alpha <= 0.5) {
       this.input.hide();
       return;
@@ -111,19 +112,18 @@ class Day0QuizLog {
     textSize(this.fontSize);
     textLeading(this.leading);
 
-    // Wrap all content and paginate
+    // Wrap + paginate
     const wrapped = this._wrapParagraphs(this.notebookContent, this.w1);
     const capPerPage = this._maxLinesPerBox * 2;
-
     if (!Number.isInteger(this.pageStarts[this.page])) {
       this.pageStarts[this.page] = wrapped.length;
     }
 
     const curStart = this.pageStarts[this.page];
     const linesFromCur = wrapped.slice(curStart);
-
-    // Auto-create next page at overflow and jump to it
     const isLastPage = this.page === this.pageStarts.length - 1;
+
+    // Auto-create next page when needed
     if (isLastPage && linesFromCur.length > capPerPage) {
       const overflowStart = curStart + capPerPage;
       if (this.pageStarts[this.pageStarts.length - 1] !== overflowStart) {
@@ -139,13 +139,13 @@ class Day0QuizLog {
         : wrapped.length;
     const curPageLines = wrapped.slice(thisStart, nextStart);
 
-    // 1) TEXT inside notebook (translated)
+    // 1) Draw text
     push();
     translate(originX, originY);
     this._drawColumnsAlpha(curPageLines, this._alpha);
     pop();
 
-    // 2) INPUT (only on last page, shows late in fade-in)
+    // 2) Input (only shows on last page, late in fade-in)
     if (
       this.page === this.pageStarts.length - 1 &&
       this._alpha > 230 &&
@@ -157,12 +157,11 @@ class Day0QuizLog {
       this.input.hide();
     }
 
-    // 3) NAV BUTTONS in screen space with fade
+    // 3) Navigation buttons with fade
     this._drawNavsScreenAlpha(this._alpha);
   }
 
   mousePressed() {
-    // Ignore when mostly transparent
     if (this._alpha < 32) return;
 
     const hasPrev = this.page - 1 >= 0;
@@ -184,6 +183,8 @@ class Day0QuizLog {
   _startFade(targetAlpha) {
     this._aFrom = this._alpha;
     this._aTo = constrain(targetAlpha, 0, 255);
+    this._aDurationMs =
+      this._aTo > this._aFrom ? this._aDurationInMs : this._aDurationOutMs;
     this._aStartMs = millis();
     this._aAnimating = true;
   }
@@ -207,7 +208,6 @@ class Day0QuizLog {
     this.input.hide();
     setTimeout(() => {
       this._justSubmitted = false;
-      // will be shown by render() when alpha > 230 and on last page
     }, 30);
   }
 

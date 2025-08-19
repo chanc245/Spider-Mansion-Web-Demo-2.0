@@ -1,14 +1,14 @@
 class Day0QuizLog {
   constructor() {
-    // Layout
-    this.x1 = 135;
-    this.y1 = 110;
+    // Boxes (with your offsets)
+    this.x1 = 135 - 95;
+    this.y1 = 110 - 75;
     this.w1 = 345;
-    this.h1 = 450; // left box
-    this.x2 = 546;
-    this.y2 = 110;
+    this.h1 = 450;
+    this.x2 = 546 - 95;
+    this.y2 = 110 - 75;
     this.w2 = 345;
-    this.h2 = 450; // right box
+    this.h2 = 450;
 
     // Content & style
     this.notebookContent = [
@@ -31,21 +31,37 @@ class Day0QuizLog {
     this._justSubmitted = false;
 
     // Paging
-    this.page = 0; // 0-based
-    this.pageStarts = [0]; // start wrapped-line index per page
+    this.page = 0;
+    this.pageStarts = [0];
     this._maxLinesPerBox = 0;
 
-    // Buttons (prev / next)
+    // Buttons in SCREEN SPACE
     this.leftBtn = { x: 105, y: 527, w: 50, h: 50 };
     this.rightBtn = { x: 870, y: 527, w: 50, h: 50 };
 
-    // Background
-    this.bg = null;
+    // Embedded mode
+    this._origin = { x: 0, y: 0 };
+
+    // Fade state
+    this._wantActive = false; // desired active state (setActive)
+    this._alpha = 0; // 0..255
+    this._aFrom = 0;
+    this._aTo = 0;
+    this._aStartMs = 0;
+    this._aDurationMs = 280; // ease duration
+    this._aAnimating = false;
+  }
+
+  setActive(on) {
+    const want = !!on;
+    if (want === this._wantActive) return;
+    this._wantActive = want;
+    this._startFade(want ? 255 : 0);
+    if (!want && this.input) this.input.hide(); // hide early on fade-out
   }
 
   preload() {
     this.userFont = loadFont("assets/fonts/BradleyHandITCTT-Bold.ttf");
-    this.bg = loadImage("assets/bg_quiz_day0_attic_bot.png");
   }
 
   setup() {
@@ -54,6 +70,7 @@ class Day0QuizLog {
     this.input = createInput("");
     this.input.attribute("placeholder", this._placeholderText());
     this.input.class("notebook-input");
+    this.input.hide(); // start hidden; fade will reveal
 
     this.input.elt.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -66,16 +83,35 @@ class Day0QuizLog {
     });
   }
 
-  update() {
-    if (this.bg) image(this.bg, 0, 0, width, height);
-    else background(220);
+  // Draw over the notebook image at its origin (call every frame)
+  render(originX = 0, originY = 0) {
+    this._origin.x = originX;
+    this._origin.y = originY;
 
+    // advance fade
+    if (this._aAnimating) {
+      const t = constrain(
+        (millis() - this._aStartMs) / this._aDurationMs,
+        0,
+        1
+      );
+      const eased = t < 0.5 ? 4 * t * t * t : 1 - pow(-2 * t + 2, 3) / 2; // easeInOutCubic
+      this._alpha = lerp(this._aFrom, this._aTo, eased);
+      if (t >= 1) this._aAnimating = false;
+    }
+
+    // If fully invisible and not animating, skip drawing & input logic entirely
+    if (!this._aAnimating && this._alpha <= 0.5) {
+      this.input.hide();
+      return;
+    }
+
+    // Text style
     if (this.userFont) textFont(this.userFont);
     textSize(this.fontSize);
     textLeading(this.leading);
-    fill(0);
-    noStroke();
 
+    // Wrap all content and paginate
     const wrapped = this._wrapParagraphs(this.notebookContent, this.w1);
     const capPerPage = this._maxLinesPerBox * 2;
 
@@ -86,10 +122,13 @@ class Day0QuizLog {
     const curStart = this.pageStarts[this.page];
     const linesFromCur = wrapped.slice(curStart);
 
-    // If last page is full, start next page at the exact overflow point
+    // Auto-create next page at overflow and jump to it
     const isLastPage = this.page === this.pageStarts.length - 1;
     if (isLastPage && linesFromCur.length > capPerPage) {
-      this.pageStarts.push(curStart + capPerPage);
+      const overflowStart = curStart + capPerPage;
+      if (this.pageStarts[this.pageStarts.length - 1] !== overflowStart) {
+        this.pageStarts.push(overflowStart);
+      }
       this.page = this.pageStarts.length - 1;
     }
 
@@ -100,37 +139,54 @@ class Day0QuizLog {
         : wrapped.length;
     const curPageLines = wrapped.slice(thisStart, nextStart);
 
-    this._drawColumns(curPageLines);
+    // 1) TEXT inside notebook (translated)
+    push();
+    translate(originX, originY);
+    this._drawColumnsAlpha(curPageLines, this._alpha);
+    pop();
 
-    if (this.page === this.pageStarts.length - 1) {
-      this._positionInput(curPageLines.length);
+    // 2) INPUT (only on last page, shows late in fade-in)
+    if (
+      this.page === this.pageStarts.length - 1 &&
+      this._alpha > 230 &&
+      !this._justSubmitted
+    ) {
+      this._positionInputScreen(curPageLines.length);
+      this.input.show();
     } else {
       this.input.hide();
     }
 
-    const hasPrev = this.page - 1 >= 0;
-    const hasNext = this.page + 1 < this.pageStarts.length;
-    if (hasPrev) this._drawNavButton(this.leftBtn, this.page - 1 + 1);
-    if (hasNext) this._drawNavButton(this.rightBtn, this.page + 1 + 1);
+    // 3) NAV BUTTONS in screen space with fade
+    this._drawNavsScreenAlpha(this._alpha);
   }
 
   mousePressed() {
+    // Ignore when mostly transparent
+    if (this._alpha < 32) return;
+
     const hasPrev = this.page - 1 >= 0;
     const hasNext = this.page + 1 < this.pageStarts.length;
 
-    if (hasPrev && this._hit(this.leftBtn)) {
+    if (hasPrev && this._inRect(mouseX, mouseY, this.leftBtn)) {
       this.page--;
       this._snapInput();
       return;
     }
-    if (hasNext && this._hit(this.rightBtn)) {
+    if (hasNext && this._inRect(mouseX, mouseY, this.rightBtn)) {
       this.page++;
       this._snapInput();
       return;
     }
   }
 
-  // --- Helpers ---
+  // ----- helpers -----
+  _startFade(targetAlpha) {
+    this._aFrom = this._alpha;
+    this._aTo = constrain(targetAlpha, 0, 255);
+    this._aStartMs = millis();
+    this._aAnimating = true;
+  }
 
   _addQuestion(text) {
     if (this.questionCount >= this.inputLimit) {
@@ -144,57 +200,75 @@ class Day0QuizLog {
   }
 
   _snapInputSoon() {
-    this._justSubmitted = true;
-    this.input.hide();
-    setTimeout(() => {
-      this._justSubmitted = false;
-      if (
-        this.page === this.pageStarts.length - 1 &&
-        this.questionCount < this.inputLimit
-      ) {
-        this.input.show();
-      }
-    }, 30);
+    this._snapInput();
   }
-
   _snapInput() {
     this._justSubmitted = true;
     this.input.hide();
     setTimeout(() => {
       this._justSubmitted = false;
-      if (
-        this.page === this.pageStarts.length - 1 &&
-        this.questionCount < this.inputLimit
-      ) {
-        this.input.show();
-      }
+      // will be shown by render() when alpha > 230 and on last page
     }, 30);
   }
 
-  _drawColumns(lines) {
+  _drawColumnsAlpha(lines, alpha) {
     const cap = this._maxLinesPerBox;
-    this._drawLines(lines.slice(0, cap), this.x1, this.y1, this.w1, this.h1);
-    this._drawLines(
+    this._drawLinesAlpha(
+      lines.slice(0, cap),
+      this.x1,
+      this.y1,
+      this.w1,
+      this.h1,
+      alpha
+    );
+    this._drawLinesAlpha(
       lines.slice(cap, cap * 2),
       this.x2,
       this.y2,
       this.w2,
-      this.h2
+      this.h2,
+      alpha
     );
   }
 
-  _drawLines(lines, x, y, w, h) {
+  _drawLinesAlpha(lines, x, y, w, h, a) {
     const max = Math.min(Math.floor(h / this.leading), lines.length);
+    push();
+    noStroke();
+    fill(0, 0, 0, a);
+    textAlign(LEFT, TOP);
     for (let i = 0; i < max; i++)
       text(lines[i], x, y + i * this.leading, w, this.leading);
+    pop();
   }
 
-  _positionInput(usedLines) {
-    if (this._justSubmitted || this.questionCount >= this.inputLimit) {
-      this.input.hide();
-      return;
-    }
+  _drawNavsScreenAlpha(a) {
+    const hasPrev = this.page - 1 >= 0;
+    const hasNext = this.page + 1 < this.pageStarts.length;
+    if (hasPrev)
+      this._drawNavButtonScreenAlpha(this.leftBtn, this.page - 1 + 1, a);
+    if (hasNext)
+      this._drawNavButtonScreenAlpha(this.rightBtn, this.page + 1 + 1, a);
+  }
 
+  _drawNavButtonScreenAlpha(btn, label1Based, a) {
+    push();
+    noStroke();
+    fill(255, 255, 255, 0.9 * a);
+    rect(btn.x, btn.y, btn.w, btn.h, 8);
+    stroke(0, a);
+    strokeWeight(2);
+    noFill();
+    rect(btn.x, btn.y, btn.w, btn.h, 8);
+    noStroke();
+    fill(0, 0, 0, a);
+    textAlign(CENTER, CENTER);
+    textSize(16);
+    text(label1Based, btn.x + btn.w / 2, btn.y + btn.h / 2 + 1);
+    pop();
+  }
+
+  _positionInputScreen(usedLines) {
     const cap = this._maxLinesPerBox;
     if (usedLines >= cap * 2) {
       this.input.hide();
@@ -203,13 +277,11 @@ class Day0QuizLog {
 
     let boxX, boxY, boxW, row;
     if (usedLines < cap) {
-      // left
       row = usedLines;
       boxX = this.x1;
       boxY = this.y1;
       boxW = this.w1;
     } else {
-      // right
       row = usedLines - cap;
       boxX = this.x2;
       boxY = this.y2;
@@ -217,29 +289,13 @@ class Day0QuizLog {
     }
 
     const w = boxW - 2 * this.inputPaddingX;
-    const y = boxY + row * this.leading + (this.leading - this.inputH) / 2;
-    const x = boxX + this.inputPaddingX;
+    const yLocal = boxY + row * this.leading + (this.leading - this.inputH) / 2;
+    const xLocal = boxX + this.inputPaddingX;
+    const sx = this._origin.x + xLocal;
+    const sy = this._origin.y + yLocal;
 
-    this.input.show();
-    this.input.position(x - 15, y - 20); // keep your visual offset
+    this.input.position(sx - 15, sy);
     this.input.size(w, this.inputH);
-  }
-
-  _drawNavButton(btn, label1Based) {
-    push();
-    noStroke();
-    fill(255, 255, 255, 230);
-    rect(btn.x, btn.y, btn.w, btn.h, 8);
-    stroke(0);
-    strokeWeight(2);
-    noFill();
-    rect(btn.x, btn.y, btn.w, btn.h, 8);
-    noStroke();
-    fill(0);
-    textAlign(CENTER, CENTER);
-    textSize(16);
-    text(label1Based, btn.x + btn.w / 2, btn.y + btn.h / 2 + 1);
-    pop();
   }
 
   _wrapParagraphs(paragraphs, maxWidth) {
@@ -252,14 +308,13 @@ class Day0QuizLog {
       let line = "";
       for (const word of words) {
         const test = line ? line + " " + word : word;
-        if (textWidth(test) <= maxWidth) {
-          line = test;
-        } else {
+        if (textWidth(test) <= maxWidth) line = test;
+        else {
           if (line) out.push(line);
           if (textWidth(word) > maxWidth) {
             for (const chunk of this._hardBreakWord(word, maxWidth))
               out.push(chunk);
-            line = out.pop(); // last chunk continues
+            line = out.pop();
           } else {
             line = word;
           }
@@ -285,11 +340,8 @@ class Day0QuizLog {
     return parts;
   }
 
-  _hit(btn) {
-    return this._inRect(mouseX, mouseY, btn.x, btn.y, btn.w, btn.h);
-  }
-  _inRect(px, py, rx, ry, rw, rh) {
-    return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
+  _inRect(px, py, r) {
+    return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
   }
   _placeholderText() {
     const n = Math.min(this.questionCount + 1, this.inputLimit);

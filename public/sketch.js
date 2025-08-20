@@ -16,12 +16,10 @@ function setup() {
 function draw() {
   quiz.update();
 
-  // Show the log only when the notebook is fully shown & we're on the Log page
   const notebookReady =
     quiz.isNotebookShown() && quiz.currentNotebook === quiz.notebookLog;
   logView.setActive(notebookReady);
 
-  // Always render so it can fade in/out smoothly
   logView.render(quiz.notebookX, quiz.notebookY);
 }
 

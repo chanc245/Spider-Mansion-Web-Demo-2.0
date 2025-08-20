@@ -6,16 +6,16 @@ class Day0Quiz {
     this.notebookClues = null;
     this.userFont = null;
 
-    // attic scroll
+    // attic scroll tween
     this.yOffset = 0;
-    this.startOffset = 0;
-    this.targetOffset = 0;
-    this.animStart = 0;
-    this.animDuration = 700;
-    this.animating = false;
+    this.scroll = new Tween({ from: 0, to: 576, dur: 700 });
+
+    // notebook slide tween (0..1)
+    this.nbT = 0;
+    this.nbSlide = new Tween({ from: 0, to: 1, dur: 700 });
 
     // state
-    this.quizState = true;
+    this.quizState = true; // true = bottom
 
     // notebook placement
     this.NOTEBOOK_W = 815;
@@ -23,44 +23,13 @@ class Day0Quiz {
     this.notebookX = 0;
     this.notebookY = 0;
 
-    // which notebook
+    // current page
     this.currentNotebook = null;
 
-    // notebook slide (0..1)
-    this.nbT = 0;
-    this.nbFrom = 0;
-    this.nbTo = 0;
-    this.nbStart = 0;
-    this.nbDuration = 700;
-    this.nbAnimating = false;
+    // tag overlay animator (instantiated in setup after font)
+    this.tag = null;
 
-    // clues tag geometry (image-space)
-    this.tagBaseX = 5;
-    this.tagTargetX = 105;
-    this.tagY = 750;
-    this.tagW = 100;
-    this.tagH = 50;
-
-    // tag anim
-    this.tagAlpha = 255;
-    this.tagSlideT = 0; // 0..1
-    this.tagSlideFrom = 0;
-    this.tagSlideTo = 0;
-    this.tagSlideStart = 0;
-    this.tagSlideDuration = 300;
-    this.tagSliding = false;
-
-    this.tagFadeStart = 0;
-    this.tagFadeDuration = 200;
-    this.tagFading = false; // used only for Clues -> Log (fade in)
-
-    // overlay system (plays UNDER the book on Clues page)
-    this.tagOverlayActive = false;
-    this.tagOverlayDir = +1; // +1: L->R (Log->Clues, no fade), -1: R->L (Clues->Log, fade in)
-    this.pendingSwitchTo = null; // 'log' when waiting to switch after anim
-
-    // hit rects
-    this._tagScreenRect = { x: -9999, y: -9999, w: 0, h: 0 };
+    // "log" button hit-rect (inside group)
     this.logBtnX = 870;
     this.logBtnY = 527;
     this.logBtnW = 50;
@@ -85,104 +54,69 @@ class Day0Quiz {
     fill(255);
     stroke(0);
     strokeWeight(3);
+
+    this.tag = new TagOverlayAnimator({
+      baseX: 5,
+      targetX: 105,
+      y: 750,
+      w: 100,
+      h: 50,
+      font: this.userFont,
+      slideDur: 300,
+      fadeDur: 200,
+    });
   }
 
   update() {
     background(220);
 
-    // scroll
-    if (this.animating) {
-      const t = (millis() - this.animStart) / this.animDuration;
-      const clamped = constrain(t, 0, 1);
-      this.yOffset = lerp(
-        this.startOffset,
-        this.targetOffset,
-        this.easeInOutCubic(clamped)
-      );
-      if (clamped >= 1) this.animating = false;
-    }
-
-    // attic
+    // attic scroll update
+    this.yOffset = this.scroll.update();
     image(this.bg, 0, -this.yOffset, width, 1152);
 
     // notebook slide in/out based on bottom state
-    const atBottom = !this.animating && Math.abs(this.yOffset - 576) < 0.5;
-    if (atBottom && this.nbTo !== 1) this.startNotebookAnim(1);
-    else if (!atBottom && this.nbTo !== 0) this.startNotebookAnim(0);
+    const atBottom = Math.abs(this.yOffset - 576) < 0.5;
+    const wanted = atBottom ? 1 : 0;
+    if (
+      (wanted === 1 && this.nbSlide.to !== 1) ||
+      (wanted === 0 && this.nbSlide.to !== 0)
+    ) {
+      this.nbSlide.start(this.nbT, wanted);
+    }
+    this.nbT = this.nbSlide.update();
 
-    if (this.nbAnimating) {
-      const t = (millis() - this.nbStart) / this.nbDuration;
-      const clamped = constrain(t, 0, 1);
-      this.nbT = lerp(this.nbFrom, this.nbTo, this.easeInOutCubic(clamped));
-      if (clamped >= 1) this.nbAnimating = false;
+    // overlay tag animation update (only meaningful on Clues page when active)
+    const status = this.tag.update();
+    if (this.tag.overlayActive && status.done) {
+      this.tag.overlayActive = false;
+      // If we were coming back (Clues→Log), only switch AFTER the reverse anim completes
+      // Switch happens outside by calling gotoLogPage() after we detect done,
+      // but we do it here for simplicity:
+      if (
+        this.currentNotebook === this.notebookClues &&
+        this._pendingSwitchToLog
+      ) {
+        this._pendingSwitchToLog = false;
+        this.gotoLogPage();
+      }
     }
 
-    // tag anims (overlay & log page)
-    this.updateTagAnimations();
-
-    // draw
+    // render notebook group
     this.renderNotebookGroup();
   }
 
-  // Expose "ready" for outside
-  isNotebookShown() {
-    return (
-      this.nbT >= 0.999 &&
-      !this.nbAnimating &&
-      this.quizState &&
-      Math.abs(this.yOffset - 576) < 0.5
-    );
-  }
-
-  // ---------- Tag animation core ----------
-  updateTagAnimations() {
-    // slide
-    if (this.tagSliding) {
-      const t = (millis() - this.tagSlideStart) / this.tagSlideDuration;
-      const clamped = constrain(t, 0, 1);
-      this.tagSlideT = lerp(
-        this.tagSlideFrom,
-        this.tagSlideTo,
-        this.easeInOutCubic(clamped)
-      );
-      if (clamped >= 1) this.tagSliding = false;
-    }
-
-    // fade (only for Clues -> Log, i.e., overlayDir = -1)
-    if (this.tagFading && this.tagOverlayDir === -1) {
-      const t = (millis() - this.tagFadeStart) / this.tagFadeDuration;
-      const clamped = constrain(t, 0, 1);
-      this.tagAlpha = lerp(0, 255, this.easeInOutCubic(clamped)); // fade IN
-      if (clamped >= 1) this.tagFading = false;
-    }
-
-    // when overlay active on Clues page, finish then maybe switch to Log
-    if (this.tagOverlayActive && !this.tagSliding && !this.tagFading) {
-      this.tagOverlayActive = false;
-      if (this.pendingSwitchTo === "log") {
-        this.pendingSwitchTo = null;
-        this.gotoLogPage(); // switch AFTER reverse anim completes
-      } else {
-        // reset for next time (Log->Clues path completes slide only)
-        this.tagAlpha = 255;
-        this.tagSlideT = 0;
-      }
-    }
-  }
-
-  // ---------- Draw ----------
   renderNotebookGroup() {
-    if (!(this.nbT > 0 || this.nbAnimating)) return;
+    if (!(this.nbT > 0 || this.nbSlide.active)) return;
     const ySlide = lerp(height, this.notebookY, this.nbT);
 
     push();
     translate(0, ySlide - this.notebookY);
 
     if (this.currentNotebook === this.notebookLog) {
-      // LOG: tag behind, then book
-      this.drawCluesTagInGroup(false);
+      // LOG: draw clickable tag behind the book
+      this.tag.drawClickable();
       image(
-        this.currentNotebook,
+        this.notebookLog,
         this.notebookX,
         this.notebookY,
         this.NOTEBOOK_W,
@@ -190,52 +124,18 @@ class Day0Quiz {
       );
     } else {
       // CLUES: draw overlay tag UNDER the book when active
-      if (this.tagOverlayActive) this.drawCluesTagInGroup(true); // under the book
+      if (this.tag.overlayActive) this.tag.drawUnder();
       image(
-        this.currentNotebook,
+        this.notebookClues,
         this.notebookX,
         this.notebookY,
         this.NOTEBOOK_W,
         this.NOTEBOOK_H
       );
-      // log button on top
+      // draw "log" button on top
       this.drawLogButtonInGroup();
     }
 
-    pop();
-  }
-
-  drawCluesTagInGroup(overlayMode = false) {
-    const baseY = this.tagY - 576;
-
-    // Horizontal mapping:
-    // - overlayDir +1 (Log->Clues): base -> target (no fade)
-    // - overlayDir -1 (Clues->Log): target -> base (reverse)
-    let x0 = this.tagBaseX,
-      x1 = this.tagTargetX;
-    if (overlayMode && this.tagOverlayDir === -1) {
-      x0 = this.tagTargetX;
-      x1 = this.tagBaseX;
-    }
-    const xNow = lerp(x0, x1, this.tagSlideT);
-
-    if (!overlayMode) {
-      // clickable only on LOG page
-      this._tagScreenRect = { x: xNow, y: baseY, w: this.tagW, h: this.tagH };
-    }
-
-    push();
-    noStroke();
-    fill(0, 0, 0, 120 * (this.tagAlpha / 255));
-    rect(xNow + 3, baseY + 3, this.tagW, this.tagH);
-    fill(255, 255, 255, this.tagAlpha);
-    rect(xNow, baseY, this.tagW, this.tagH);
-    textFont(this.userFont);
-    textSize(30);
-    noStroke();
-    fill(0, 0, 0, this.tagAlpha);
-    textAlign(CENTER, CENTER);
-    text("clues", xNow + this.tagW / 2, baseY + this.tagH / 2 - 2);
     pop();
   }
 
@@ -264,7 +164,17 @@ class Day0Quiz {
     pop();
   }
 
-  // ---------- Input ----------
+  // outside visibility signal
+  isNotebookShown() {
+    return (
+      this.nbT >= 0.999 &&
+      !this.nbSlide.active &&
+      this.quizState &&
+      Math.abs(this.yOffset - 576) < 0.5
+    );
+  }
+
+  // interactions
   keyPressed() {
     if (key === "q" || key === "Q") this.setQuizState(false);
     else if (key === "w" || key === "W") this.setQuizState(true);
@@ -273,83 +183,47 @@ class Day0Quiz {
   }
 
   mousePressed() {
-    // LOG page: click "clues" → switch immediately; overlay slides L->R, NO FADE
+    // LOG page: click "clues" → switch immediately; overlay slides L->R (no fade) under Clues
     if (this.currentNotebook === this.notebookLog) {
-      if (this.nbT > 0 || this.nbAnimating) {
-        const { x, y, w, h } = this._tagScreenRect;
-        if (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h) {
-          // prep overlay
-          this.tagOverlayDir = +1; // L->R
-          this.tagSlideFrom = 0;
-          this.tagSlideTo = 1;
-          this.tagSlideStart = millis();
-          this.tagSliding = true;
-          this.tagAlpha = 255; // keep fully opaque
-          this.tagFading = false; // NO fade on this path
-          this.tagOverlayActive = true;
-          this.pendingSwitchTo = null;
-
-          // switch now
-          this.gotoCluesPage();
-          return;
-        }
+      const r = this.tag.screenRect;
+      if (
+        mouseX >= r.x &&
+        mouseX <= r.x + r.w &&
+        mouseY >= r.y &&
+        mouseY <= r.y + r.h
+      ) {
+        this.tag.startLogToClues();
+        this._pendingSwitchToLog = false;
+        this.gotoCluesPage(); // switch NOW
+        return;
       }
     }
 
-    // CLUES page: click "log" → overlay slides R->L while fading IN, then switch to Log
+    // CLUES page: click "log" → overlay slides R->L while fading IN, then switch to Log when done
     if (this.currentNotebook === this.notebookClues) {
-      if (this.nbT > 0 || this.nbAnimating) {
-        const { x, y, w, h } = this._logScreenRect;
-        if (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h) {
-          this.tagOverlayDir = -1; // R->L
-          this.tagSlideFrom = 0;
-          this.tagSlideTo = 1;
-          this.tagSlideStart = millis();
-          this.tagSliding = true;
-          this.tagAlpha = 0; // start invisible
-          this.tagFadeStart = millis();
-          this.tagFading = true; // fade in
-          this.tagOverlayActive = true;
-          this.pendingSwitchTo = "log"; // switch after anim completes
-          return;
-        }
+      const { x, y, w, h } = this._logScreenRect;
+      if (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h) {
+        this.tag.startCluesToLog();
+        // flag to switch AFTER anim completes
+        this._pendingSwitchToLog = true;
+        return;
       }
     }
   }
 
-  // ---------- Page switches ----------
+  // page switches
   gotoCluesPage() {
     this.currentNotebook = this.notebookClues;
   }
-
   gotoLogPage() {
     this.currentNotebook = this.notebookLog;
-    // reset tag state on log page
-    this.tagAlpha = 255;
-    this.tagSliding = false;
-    this.tagFading = false;
-    this.tagSlideT = 0;
-    this.tagOverlayActive = false;
-    this.pendingSwitchTo = null;
   }
 
-  // ---------- Anim helpers ----------
+  // scroll target
   setQuizState(state) {
     this.quizState = state;
-    this.startOffset = this.yOffset;
-    this.targetOffset = this.quizState ? 576 : 0;
-    this.animStart = millis();
-    this.animating = true;
-  }
-
-  startNotebookAnim(target) {
-    this.nbFrom = this.nbT;
-    this.nbTo = target;
-    this.nbStart = millis();
-    this.nbAnimating = true;
-  }
-
-  easeInOutCubic(x) {
-    return x < 0.5 ? 4 * x * x * x : 1 - pow(-2 * x + 2, 3) / 2;
+    const to = this.quizState ? 576 : 0;
+    this.scroll.start(this.yOffset, to);
   }
 }
+window.Day0Quiz = Day0Quiz;

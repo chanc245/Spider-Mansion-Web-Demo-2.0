@@ -50,7 +50,7 @@ class Day0QuizLog {
     this.active = false;
     this.alpha = 0;
     this.fadeIn = new Tween({ from: 0, to: 255, dur: 220 });
-    this.fadeOut = new Tween({ from: 255, to: 0, dur: 140 });
+    this.fadeOut = new Tween({ from: 255, to: 0, dur: 0 });
     this.fadingOut = false;
   }
 

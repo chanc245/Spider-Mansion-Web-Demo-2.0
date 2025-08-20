@@ -4,43 +4,51 @@ class Day0Quiz {
     this.bg = null;
     this.notebookLog = null;
     this.notebookClues = null;
+    this.notebookRules = null;
     this.userFont = null;
 
-    // attic scroll tween
+    // scroll + notebook slide
     this.yOffset = 0;
     this.scroll = new Tween({ from: 0, to: 576, dur: 700 });
-
-    // notebook slide tween (0..1)
     this.nbT = 0;
     this.nbSlide = new Tween({ from: 0, to: 1, dur: 700 });
 
     // state
-    this.quizState = true; // true = bottom
-
-    // notebook placement
+    this.quizState = true; // bottom
     this.NOTEBOOK_W = 815;
     this.NOTEBOOK_H = 510;
     this.notebookX = 0;
     this.notebookY = 0;
+    this.currentNotebook = null; // this.notebookLog / this.notebookClues / this.notebookRules
 
-    // current page
-    this.currentNotebook = null;
+    // tags (overlay animators)
+    this.tagClues = null;
+    this.tagRules = null;
 
-    // tag overlay animator (instantiated in setup after font)
-    this.tag = null;
+    // per-page “stay hidden after anim” flags
+    this.cluesHiddenOnClues = false;
+    this.rulesHiddenOnRules = false;
 
-    // "log" button hit-rect (inside group)
+    // last path markers
+    this._cluesLastPath = null; // 'logToPage' | 'pageToLog' | null
+    this._rulesLastPath = null;
+
+    // log button (inside group)
     this.logBtnX = 870;
     this.logBtnY = 527;
     this.logBtnW = 50;
     this.logBtnH = 50;
     this._logScreenRect = { x: -9999, y: -9999, w: 0, h: 0 };
+
+    // pending switch after reverse anim finishes
+    this._pendingSwitchToLogFrom = null; // "clues" | "rules" | null
   }
 
   preload() {
     this.bg = loadImage("assets/bg_quiz_day0_attic.png");
     this.notebookLog = loadImage("assets/notebook_QuestionLog_1.png");
     this.notebookClues = loadImage("assets/notebook_Clues.png");
+    this.notebookRules = loadImage("assets/notebook_Rules.png");
     this.userFont = loadFont("assets/fonts/BradleyHandITCTT-Bold.ttf");
   }
 
@@ -55,10 +63,23 @@ class Day0Quiz {
     stroke(0);
     strokeWeight(3);
 
-    this.tag = new TagOverlayAnimator({
+    // stationary tags + overlay anim (under book) when active
+    this.tagClues = new TagOverlayAnimator({
+      label: "clues",
       baseX: 5,
       targetX: 105,
       y: 750,
+      w: 100,
+      h: 50,
+      font: this.userFont,
+      slideDur: 300,
+      fadeDur: 200,
+    });
+    this.tagRules = new TagOverlayAnimator({
+      label: "rules",
+      baseX: 5,
+      targetX: 105,
+      y: 680,
       w: 100,
       h: 50,
       font: this.userFont,
@@ -70,38 +91,53 @@ class Day0Quiz {
   update() {
     background(220);
 
-    // attic scroll update
+    // scroll & attic
     this.yOffset = this.scroll.update();
     image(this.bg, 0, -this.yOffset, width, 1152);
 
-    // notebook slide in/out based on bottom state
+    // slide notebook at bottom
     const atBottom = Math.abs(this.yOffset - 576) < 0.5;
-    const wanted = atBottom ? 1 : 0;
+    const want = atBottom ? 1 : 0;
     if (
-      (wanted === 1 && this.nbSlide.to !== 1) ||
-      (wanted === 0 && this.nbSlide.to !== 0)
-    ) {
-      this.nbSlide.start(this.nbT, wanted);
-    }
+      (want === 1 && this.nbSlide.to !== 1) ||
+      (want === 0 && this.nbSlide.to !== 0)
+    )
+      this.nbSlide.start(this.nbT, want);
     this.nbT = this.nbSlide.update();
 
-    // overlay tag animation update (only meaningful on Clues page when active)
-    const status = this.tag.update();
-    if (this.tag.overlayActive && status.done) {
-      this.tag.overlayActive = false;
-      // If we were coming back (Clues→Log), only switch AFTER the reverse anim completes
-      // Switch happens outside by calling gotoLogPage() after we detect done,
-      // but we do it here for simplicity:
-      if (
-        this.currentNotebook === this.notebookClues &&
-        this._pendingSwitchToLog
-      ) {
-        this._pendingSwitchToLog = false;
-        this.gotoLogPage();
+    // tag anims
+    const stClues = this.tagClues.update();
+    const stRules = this.tagRules.update();
+
+    // finish overlays
+    if (this.tagClues.overlayActive && stClues.done) {
+      this.tagClues.overlayActive = false;
+      if (this._cluesLastPath === "logToPage") {
+        this.cluesHiddenOnClues = true; // keep hidden on Clues after entrance
+      } else if (this._cluesLastPath === "pageToLog") {
+        if (this._pendingSwitchToLogFrom === "clues") {
+          this._pendingSwitchToLogFrom = null;
+          this.gotoLogPage();
+        }
       }
+      // NEW: do nothing special for pageToBase
+      this._cluesLastPath = null;
     }
 
-    // render notebook group
+    if (this.tagRules.overlayActive && stRules.done) {
+      this.tagRules.overlayActive = false;
+      if (this._rulesLastPath === "logToPage") {
+        this.rulesHiddenOnRules = true; // keep hidden on Rules after entrance
+      } else if (this._rulesLastPath === "pageToLog") {
+        if (this._pendingSwitchToLogFrom === "rules") {
+          this._pendingSwitchToLogFrom = null;
+          this.gotoLogPage();
+        }
+      }
+      // NEW: do nothing special for pageToBase
+      this._rulesLastPath = null;
+    }
+
     this.renderNotebookGroup();
   }
 
@@ -112,59 +148,70 @@ class Day0Quiz {
     push();
     translate(0, ySlide - this.notebookY);
 
+    // 1) stationary tags behind the book
+    // On Log → both visible (ignore hidden flags)
     if (this.currentNotebook === this.notebookLog) {
-      // LOG: draw clickable tag behind the book
-      this.tag.drawClickable();
-      image(
-        this.notebookLog,
-        this.notebookX,
-        this.notebookY,
-        this.NOTEBOOK_W,
-        this.NOTEBOOK_H
-      );
-    } else {
-      // CLUES: draw overlay tag UNDER the book when active
-      if (this.tag.overlayActive) this.tag.drawUnder();
-      image(
-        this.notebookClues,
-        this.notebookX,
-        this.notebookY,
-        this.NOTEBOOK_W,
-        this.NOTEBOOK_H
-      );
-      // draw "log" button on top
-      this.drawLogButtonInGroup();
+      if (!this.tagClues.overlayActive) this.tagClues.drawClickable();
+      if (!this.tagRules.overlayActive) this.tagRules.drawClickable();
+    } else if (this.currentNotebook === this.notebookClues) {
+      // Rules visible; Clues visible only if not overlaying and not hidden
+      if (!this.tagRules.overlayActive) this.tagRules.drawClickable();
+      if (!this.tagClues.overlayActive && !this.cluesHiddenOnClues)
+        this.tagClues.drawClickable();
+    } else if (this.currentNotebook === this.notebookRules) {
+      // Clues visible; Rules visible only if not overlaying and not hidden
+      if (!this.tagClues.overlayActive) this.tagClues.drawClickable();
+      if (!this.tagRules.overlayActive && !this.rulesHiddenOnRules)
+        this.tagRules.drawClickable();
     }
+
+    // 2) active overlay(s) under the book (only current page’s tag animates)
+    if (this.tagClues.overlayActive) this.tagClues.drawUnder();
+    if (this.tagRules.overlayActive) this.tagRules.drawUnder();
+
+    // 3) notebook on top
+    let img = this.notebookLog;
+    if (this.currentNotebook === this.notebookClues) img = this.notebookClues;
+    else if (this.currentNotebook === this.notebookRules)
+      img = this.notebookRules;
+    image(
+      img,
+      this.notebookX,
+      this.notebookY,
+      this.NOTEBOOK_W,
+      this.NOTEBOOK_H
+    );
+
+    // 4) log button when on Clues/Rules
+    if (this.currentNotebook !== this.notebookLog) this.drawLogButtonInGroup();
 
     pop();
   }
 
   drawLogButtonInGroup() {
-    const baseX = this.logBtnX,
-      baseY = this.logBtnY;
-    this._logScreenRect = {
-      x: baseX,
-      y: baseY,
+    const { x, y, w, h } = {
+      x: this.logBtnX,
+      y: this.logBtnY,
       w: this.logBtnW,
       h: this.logBtnH,
     };
-
+    this._logScreenRect = { x, y, w, h };
     push();
     noStroke();
     fill(0, 0, 0, 120);
-    rect(baseX + 3, baseY + 3, this.logBtnW, this.logBtnH);
+    rect(x + 3, y + 3, w, h);
     fill(255);
-    rect(baseX, baseY, this.logBtnW, this.logBtnH);
+    rect(x, y, w, h);
     textFont(this.userFont);
     textSize(24);
     noStroke();
     fill(0);
     textAlign(CENTER, CENTER);
-    text("log", baseX + this.logBtnW / 2, baseY + this.logBtnH / 2);
+    text("log", x + w / 2, y + h / 2);
     pop();
   }
 
-  // outside visibility signal
+  // visibility for Day0QuizLog
   isNotebookShown() {
     return (
       this.nbT >= 0.999 &&
@@ -174,7 +221,6 @@ class Day0Quiz {
     );
   }
 
-  // interactions
   keyPressed() {
     if (key === "q" || key === "Q") this.setQuizState(false);
     else if (key === "w" || key === "W") this.setQuizState(true);
@@ -183,47 +229,106 @@ class Day0Quiz {
   }
 
   mousePressed() {
-    // LOG page: click "clues" → switch immediately; overlay slides L->R (no fade) under Clues
-    if (this.currentNotebook === this.notebookLog) {
-      const r = this.tag.screenRect;
-      if (
-        mouseX >= r.x &&
-        mouseX <= r.x + r.w &&
-        mouseY >= r.y &&
-        mouseY <= r.y + r.h
-      ) {
-        this.tag.startLogToClues();
-        this._pendingSwitchToLog = false;
-        this.gotoCluesPage(); // switch NOW
-        return;
+    // CLUES tag click (allowed on any page it’s visible)
+    if (this._canClickClues() && this.tagClues.hit(mouseX, mouseY)) {
+      // Always start overlays BEFORE switching:
+      // 1) Clicked tag: entrance L→R (no fade)
+      this.tagClues.startLogToPage();
+      this.tagClues.overlayActive = true;
+      this._cluesLastPath = "logToPage";
+      this._pendingSwitchToLogFrom = null;
+
+      // 2) If we were on RULES page, also reverse the RULES tag so it "appears" properly
+      if (this.currentNotebook === this.notebookRules) {
+        this.tagRules.startPageToBase(); // R→L + fade-in
+        this.tagRules.overlayActive = true;
+        this._rulesLastPath = "pageToBase"; // <-- NEW path
       }
+
+      // Switch now; the overlays render under the new page
+      this.gotoCluesPage();
+      // since we left Rules, allow it to be visible on its page next time
+      this.rulesHiddenOnRules = false;
+      return;
     }
 
-    // CLUES page: click "log" → overlay slides R->L while fading IN, then switch to Log when done
-    if (this.currentNotebook === this.notebookClues) {
+    // RULES tag click (allowed on any page it’s visible)
+    if (this._canClickRules() && this.tagRules.hit(mouseX, mouseY)) {
+      // 1) Clicked tag: entrance L→R (no fade)
+      this.tagRules.startLogToPage();
+      this.tagRules.overlayActive = true;
+      this._rulesLastPath = "logToPage";
+      this._pendingSwitchToLogFrom = null;
+
+      // 2) If we were on CLUES page, also reverse the CLUES tag so it "appears" properly
+      if (this.currentNotebook === this.notebookClues) {
+        this.tagClues.startPageToBase(); // R→L + fade-in
+        this.tagClues.overlayActive = true;
+        this._cluesLastPath = "pageToBase"; // <-- NEW path
+      }
+
+      // Switch now
+      this.gotoRulesPage();
+      this.cluesHiddenOnClues = false;
+      return;
+    }
+
+    // On Clues/Rules → click "log": reverse only that page’s tag, then switch.
+    if (this.currentNotebook !== this.notebookLog) {
       const { x, y, w, h } = this._logScreenRect;
       if (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h) {
-        this.tag.startCluesToLog();
-        // flag to switch AFTER anim completes
-        this._pendingSwitchToLog = true;
-        return;
+        if (this.currentNotebook === this.notebookClues) {
+          this.tagClues.startPageToLog(); // R→L + fade-in
+          this.tagClues.overlayActive = true;
+          this._cluesLastPath = "pageToLog";
+          this._pendingSwitchToLogFrom = "clues";
+        } else if (this.currentNotebook === this.notebookRules) {
+          this.tagRules.startPageToLog(); // R→L + fade-in
+          this.tagRules.overlayActive = true;
+          this._rulesLastPath = "pageToLog";
+          this._pendingSwitchToLogFrom = "rules";
+        }
       }
     }
+  }
+
+  // clickability helpers (respect per-page hidden flags)
+  _canClickClues() {
+    if (this.currentNotebook === this.notebookLog)
+      return !this.tagClues.overlayActive;
+    if (this.currentNotebook === this.notebookClues)
+      return !this.cluesHiddenOnClues && !this.tagClues.overlayActive;
+    if (this.currentNotebook === this.notebookRules)
+      return !this.tagClues.overlayActive;
+    return true;
+  }
+  _canClickRules() {
+    if (this.currentNotebook === this.notebookLog)
+      return !this.tagRules.overlayActive;
+    if (this.currentNotebook === this.notebookRules)
+      return !this.rulesHiddenOnRules && !this.tagRules.overlayActive;
+    if (this.currentNotebook === this.notebookClues)
+      return !this.tagRules.overlayActive;
+    return true;
   }
 
   // page switches
   gotoCluesPage() {
     this.currentNotebook = this.notebookClues;
   }
+  gotoRulesPage() {
+    this.currentNotebook = this.notebookRules;
+  }
   gotoLogPage() {
     this.currentNotebook = this.notebookLog;
+    // returning to Log restores both tags
+    this.cluesHiddenOnClues = false;
+    this.rulesHiddenOnRules = false;
   }
 
-  // scroll target
   setQuizState(state) {
     this.quizState = state;
-    const to = this.quizState ? 576 : 0;
-    this.scroll.start(this.yOffset, to);
+    this.scroll.start(this.yOffset, this.quizState ? 576 : 0);
   }
 }
 window.Day0Quiz = Day0Quiz;

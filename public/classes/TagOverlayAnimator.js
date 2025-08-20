@@ -1,49 +1,57 @@
+// public/classes/TagOverlayAnimator.js
 class TagOverlayAnimator {
   constructor({
     label = "clues",
+    // Stationary/clickable location (drawn behind the notebook)
     baseX = 5,
-    targetX = 105,
     y = 750,
     w = 100,
     h = 50,
     font = null,
+    // Overlay animation path (drawn UNDER the notebook while animating).
+    // Default to sweeping from baseX → targetX (like the left-side tags).
+    overlayStartX = null,
+    overlayEndX = null,
     slideDur = 300,
     fadeDur = 200,
   } = {}) {
     this.label = label;
+
+    // Stationary placement
     this.baseX = baseX;
-    this.targetX = targetX;
     this.y = y;
     this.w = w;
     this.h = h;
     this.font = font;
 
-    this.slide = new Tween({ from: 0, to: 1, dur: slideDur });
-    this.fade = new Tween({ from: 255, to: 255, dur: fadeDur }); // only used on reverse path
+    // Overlay path
+    this.overlayStartX = overlayStartX ?? baseX;
+    this.overlayEndX = overlayEndX ?? baseX + 100; // sensible default
 
+    // Tweens
+    this.slide = new Tween({ from: 0, to: 1, dur: slideDur });
+    this.fade = new Tween({ from: 255, to: 255, dur: fadeDur }); // used for reverse/fade-in
+
+    // State for overlay
     this.overlayActive = false;
-    this.overlayDir = +1; // +1: L->R (Log→Page, no fade), -1: R->L (Page→Log, fade in)
-    this.screenRect = { x: -9999, y: -9999, w: 0, h: 0 }; // clickable rect on LOG page
+    // +1: "entrance" along overlayStartX → overlayEndX (no fade change)
+    // -1: "reverse"  along overlayEndX   → overlayStartX (fade in)
+    this.overlayDir = +1;
+
+    // Hit rect for stationary tag
+    this.screenRect = { x: -9999, y: -9999, w: 0, h: 0 };
   }
 
-  startLogToPage() {
-    // click on LOG tag → switch immediately; slide L→R, no fade
+  // Play entrance sweep (overlayStartX -> overlayEndX), keep current alpha
+  startEntrance() {
     this.overlayActive = true;
     this.overlayDir = +1;
     this.slide.start(0, 1);
-    this.fade.start(255, 255, 1); // keep alpha as-is
-  }
-  startPageToLog() {
-    // click “log” on PAGE → slide R→L, fade in, switch after
-    this.overlayActive = true;
-    this.overlayDir = -1;
-    this.slide.start(0, 1);
-    this.fade.start(0, 255); // fade in while sliding back
+    this.fade.start(255, 255, 1);
   }
 
-  startPageToBase() {
-    // Reverse sweep R→L with fade-in, used when switching between pages (Rules ⇄ Clues)
-    // No page switch will be triggered by Day0Quiz for this path.
+  // Play reverse sweep (overlayEndX -> overlayStartX), fade in as it moves
+  startReverseWithFade() {
     this.overlayActive = true;
     this.overlayDir = -1;
     this.slide.start(0, 1);
@@ -57,7 +65,7 @@ class TagOverlayAnimator {
     return { tSlide, alpha, done };
   }
 
-  // Draw stationary, clickable tag on LOG page
+  // Stationary, clickable tag rendered behind the notebook
   drawClickable() {
     const xNow = this.baseX;
     const baseY = this.y - 576;
@@ -79,13 +87,13 @@ class TagOverlayAnimator {
     pop();
   }
 
-  // Draw animated overlay UNDER the notebook (while transitioning)
+  // Animated overlay under the notebook
   drawUnder() {
     const t = this.slide.value;
     const baseY = this.y - 576;
 
-    const x0 = this.overlayDir === -1 ? this.targetX : this.baseX;
-    const x1 = this.overlayDir === -1 ? this.baseX : this.targetX;
+    const x0 = this.overlayDir === -1 ? this.overlayEndX : this.overlayStartX;
+    const x1 = this.overlayDir === -1 ? this.overlayStartX : this.overlayEndX;
     const xNow = lerp(x0, x1, t);
 
     push();

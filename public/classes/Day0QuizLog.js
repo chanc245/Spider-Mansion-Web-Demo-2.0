@@ -1,6 +1,7 @@
+// public/classes/Day0QuizLog.js
 class Day0QuizLog {
   constructor() {
-    // positions RELATIVE to the notebook top-left (your adjusted offsets)
+    // Positions RELATIVE to the notebook top-left (keeping your offsets)
     this.x1 = 135 - 95;
     this.y1 = 110 - 65;
     this.w1 = 345;
@@ -10,11 +11,9 @@ class Day0QuizLog {
     this.w2 = 345;
     this.h2 = 450;
 
-    // notebook anchor set by render()
     this.anchorX = 0;
     this.anchorY = 0;
 
-    // content & style
     this.notebookContent = [
       "Day 0 - Question:",
       "I built a house, but the guests didn’t realize it was there and accidentally entered. Afterward, the guests, who were trapped in the house, became my dinner.",
@@ -25,7 +24,7 @@ class Day0QuizLog {
     this.fontSize = 20;
     this.leading = 30;
 
-    // input flow
+    // Input / flow
     this.input = null;
     this.inputH = 26;
     this.inputPaddingX = 5;
@@ -35,23 +34,31 @@ class Day0QuizLog {
     this._justSubmitted = false;
     this.waitingForAI = false;
 
-    // paging
-    this.paginator = null; // created in setup
-    this.layouter = null; // created in setup
+    // Paging
+    this.page = 0;
+    this.pageStarts = [0];
+    this._maxLinesPerBox = 0;
 
-    // nav buttons (screen space)
+    // Nav buttons (screen coords)
     this.leftBtn = { x: 105, y: 527, w: 50, h: 50 };
     this.rightBtn = { x: 870, y: 527, w: 50, h: 50 };
 
     // Eva
     this.eva = null;
 
-    // fade
+    // Fade state
     this.active = false;
     this.alpha = 0;
-    this.fadeIn = new Tween({ from: 0, to: 255, dur: 220 });
-    this.fadeOut = new Tween({ from: 255, to: 0, dur: 0 });
-    this.fadingOut = false;
+    this.fadeFrom = 0;
+    this.fadeTo = 0;
+    this.fadeStart = 0;
+    this.fading = false;
+
+    this.fadeDurPageIn = 220;
+    this.fadeDurPageOut = 0;
+    this.fadeDurMoveIn = 350;
+    this.fadeDurMoveOut = 170;
+    this._fadeProfile = "page";
   }
 
   preload() {
@@ -59,15 +66,9 @@ class Day0QuizLog {
   }
 
   setup() {
-    const linesPerBox = Math.floor(this.h1 / this.leading);
-    this.paginator = new Paginator(linesPerBox, 2);
-    this.layouter = new TextLayouter({
-      font: this.userFont,
-      fontSize: this.fontSize,
-      leading: this.leading,
-    });
+    this._maxLinesPerBox = Math.floor(this.h1 / this.leading);
 
-    // Eva puzzle
+    // Eva init (you can still override from outside if you like)
     const setupText =
       "I built a house, but the guests didn’t realize it was there and accidentally entered. Afterward, the guests, who were trapped in the house, became my dinner. Who am I?";
     const solutionText =
@@ -77,12 +78,11 @@ class Day0QuizLog {
       icon: "--",
     });
 
-    // input
+    // Input
     this.input = createInput("");
     this.input.attribute("placeholder", this._placeholderText());
     this.input.class("notebook-input");
 
-    // enter handler
     this.input.elt.addEventListener("keydown", async (e) => {
       if (e.key !== "Enter") return;
       const v = this.input.value().trim();
@@ -95,40 +95,41 @@ class Day0QuizLog {
         return;
       }
 
-      // Add user's question
+      // Add user's question line
       this.questionCount++;
       this.notebookContent.push(`Q${this.questionCount}: ${v}`);
       this.input.value("");
       this.input.attribute("placeholder", this._placeholderText());
 
-      // Hide input and wait for AI
+      // Hide input immediately and wait for AI
       this.waitingForAI = true;
       this._justSubmitted = true;
       this.input.hide();
 
-      // "thinking…" placeholder → replaced by reply
+      // placeholder to replace with Eva's reply
       const idx =
-        this.notebookContent.push(`${this.eva.icon}${this.eva.prefix}: (…)`) -
-        1;
+        this.notebookContent.push(
+          `${this.eva.icon}${this.eva.prefix}: (thinking…)`
+        ) - 1;
 
       try {
         const reply = await this.eva.ask(v);
         this.notebookContent[
           idx
         ] = `${this.eva.icon}${this.eva.prefix}: ${reply}`;
-        // add a visible blank line (NBSP) after Eva's reply
-        this.notebookContent.push("***");
+        // Optional spacer line after Eva's response
+        this.notebookContent.push(" ");
       } catch (err) {
         this.notebookContent[idx] = `${this.eva.icon}${
           this.eva.prefix
         }: (error) ${err.message || err}`;
       } finally {
-        // allow input to reappear on the next available line
+        // allow input to reappear (positioned on next available line)
         this.waitingForAI = false;
         setTimeout(() => {
           this._justSubmitted = false;
           if (this._canShowInputThisPage()) this.input.show();
-        }, 30);
+        }, 16);
       }
     });
 
@@ -137,89 +138,131 @@ class Day0QuizLog {
     this.input.hide();
   }
 
-  setActive(shouldBeActive) {
-    if (shouldBeActive === this.active) return;
+  /**
+   * NEW: lets the caller specify which fade profile to use this time.
+   * @param {boolean} shouldBeActive
+   * @param {"page"|"move"|null} profile - if provided, chooses speed set
+   */
+  setActive(shouldBeActive, profile = null) {
+    if (profile) this._fadeProfile = profile; // remember which speed to use
+    if (shouldBeActive === this.active && !profile) return;
+
+    const wasActive = this.active;
     this.active = shouldBeActive;
-    if (shouldBeActive) {
-      this.fadingOut = false;
-      this.fadeIn.start(this.alpha, 255);
+
+    // pick durations by profile + direction
+    const goingIn = shouldBeActive && !wasActive;
+    let dur;
+    if (this._fadeProfile === "move") {
+      dur = goingIn ? this.fadeDurMoveIn : this.fadeDurMoveOut;
     } else {
-      this.fadingOut = true;
-      this.fadeOut.start(this.alpha, 0);
-      this.input.hide();
+      dur = goingIn ? this.fadeDurPageIn : this.fadeDurPageOut;
     }
+
+    this.fadeFrom = this.alpha;
+    this.fadeTo = shouldBeActive ? 255 : 0;
+    this.fadeStart = millis();
+    this.fadeDurCurrent = max(1, dur);
+    this.fading = true;
+
+    if (!shouldBeActive) this.input.hide();
   }
 
   render(notebookX = 0, notebookY = 0) {
     this.anchorX = notebookX;
     this.anchorY = notebookY;
 
-    // update fade
-    if (this.fadingOut) this.alpha = this.fadeOut.update();
-    else this.alpha = this.fadeIn.update();
-    this._applyInputOpacity();
+    if (this.fading) {
+      const t = (millis() - this.fadeStart) / this.fadeDurCurrent;
+      const clamped = constrain(t, 0, 1);
+      const eased = this._easeInOutCubic(clamped);
+      this.alpha = lerp(this.fadeFrom, this.fadeTo, eased);
+      if (clamped >= 1) {
+        this.fading = false;
+        this.alpha = this.fadeTo;
+        if (this.alpha >= 254 && this._canShowInputThisPage())
+          this.input.show();
+      }
+      this._applyInputOpacity();
+    }
 
-    // layout & draw
     this._updateAndDraw();
   }
 
   mousePressed() {
-    if (this.paginator.hasPrev() && this._hit(this.leftBtn)) {
-      this.paginator.goPrev();
+    const hasPrev = this.page - 1 >= 0;
+    const hasNext = this.page + 1 < this.pageStarts.length;
+
+    if (hasPrev && this._hit(this.leftBtn)) {
+      this.page--;
       this._snapInput();
       return;
     }
-    if (this.paginator.hasNext() && this._hit(this.rightBtn)) {
-      this.paginator.goNext();
+    if (hasNext && this._hit(this.rightBtn)) {
+      this.page++;
       this._snapInput();
       return;
     }
   }
 
-  // internal
+  // ---------- internal ----------
+
   _updateAndDraw() {
     if (this.userFont) textFont(this.userFont);
     textSize(this.fontSize);
     textLeading(this.leading);
 
-    const wrapped = this.layouter.wrap(this.notebookContent, this.w1);
+    const wrapped = this._wrapParagraphs(this.notebookContent, this.w1);
+    const capPerPage = this._maxLinesPerBox * 2;
 
-    this.paginator.ensureCurrentPageIndex(wrapped.length);
-    const curStart = this.paginator.pageStarts[this.paginator.page];
-    this.paginator.maybeAddPage(curStart, wrapped.length);
+    if (!Number.isInteger(this.pageStarts[this.page])) {
+      this.pageStarts[this.page] = wrapped.length;
+    }
 
-    const lines = this.paginator.currentSlice(wrapped);
+    const curStart = this.pageStarts[this.page];
+    const linesFromCur = wrapped.slice(curStart);
+
+    // auto paginate exactly at overflow point
+    if (
+      this.page === this.pageStarts.length - 1 &&
+      linesFromCur.length > capPerPage
+    ) {
+      const overflowStart = curStart + capPerPage;
+      if (this.pageStarts[this.pageStarts.length - 1] !== overflowStart) {
+        this.pageStarts.push(overflowStart);
+      }
+      this.page = this.pageStarts.length - 1;
+    }
+
+    const thisStart = this.pageStarts[this.page];
+    const nextStart =
+      this.page + 1 < this.pageStarts.length
+        ? this.pageStarts[this.page + 1]
+        : wrapped.length;
+    const curPageLines = wrapped.slice(thisStart, nextStart);
 
     // draw columns with alpha
-    this._drawColumns(lines, this.alpha);
+    this._drawColumns(curPageLines, this.alpha);
 
-    // input
-    if (this._canShowInputThisPage()) this._positionInput(lines.length);
+    // input positioning (only when allowed)
+    if (this._canShowInputThisPage()) this._positionInput(curPageLines.length);
     else this.input.hide();
 
     // nav buttons
     if (this.alpha > 1) {
-      if (this.paginator.hasPrev())
-        this._drawNavButton(
-          this.leftBtn,
-          this.paginator.page - 1 + 1,
-          this.alpha
-        );
-      if (this.paginator.hasNext())
-        this._drawNavButton(
-          this.rightBtn,
-          this.paginator.page + 1 + 1,
-          this.alpha
-        );
+      const hasPrev = this.page - 1 >= 0;
+      const hasNext = this.page + 1 < this.pageStarts.length;
+      if (hasPrev)
+        this._drawNavButton(this.leftBtn, this.page - 1 + 1, this.alpha);
+      if (hasNext)
+        this._drawNavButton(this.rightBtn, this.page + 1 + 1, this.alpha);
     }
   }
 
   _canShowInputThisPage() {
-    const onLastPage =
-      this.paginator.page === this.paginator.pageStarts.length - 1;
     return (
       this.alpha >= 200 &&
-      onLastPage &&
+      this.page === this.pageStarts.length - 1 &&
       this.questionCount < this.inputLimit &&
       !this._justSubmitted &&
       !this.waitingForAI
@@ -243,7 +286,7 @@ class Day0QuizLog {
   }
 
   _drawColumns(lines, alpha) {
-    const cap = this.paginator.linesPerBox;
+    const cap = this._maxLinesPerBox;
     this._drawLines(
       lines.slice(0, cap),
       this.anchorX + this.x1,
@@ -267,32 +310,32 @@ class Day0QuizLog {
     push();
     noStroke();
     fill(0, 0, 0, alpha);
-    for (let i = 0; i < max; i++)
+    for (let i = 0; i < max; i++) {
       text(lines[i], x, y + i * this.leading, w, this.leading);
+    }
     pop();
   }
 
-  _positionInput(usedLinesOnPage) {
-    const cap = this.paginator.linesPerBox;
-    if (usedLinesOnPage >= cap * 2) {
+  _positionInput(usedLines) {
+    const cap = this._maxLinesPerBox;
+    if (usedLines >= cap * 2) {
       this.input.hide();
       return;
     }
 
     let boxX, boxY, boxW, row;
-    if (usedLinesOnPage < cap) {
-      // left column
-      row = usedLinesOnPage;
+    if (usedLines < cap) {
+      row = usedLines;
       boxX = this.anchorX + this.x1;
       boxY = this.anchorY + this.y1;
       boxW = this.w1;
     } else {
-      // right column
-      row = usedLinesOnPage - cap;
+      row = usedLines - cap;
       boxX = this.anchorX + this.x2;
       boxY = this.anchorY + this.y2;
       boxW = this.w2;
     }
+
     const w = boxW - 2 * this.inputPaddingX;
     const y = boxY + row * this.leading + (this.leading - this.inputH) / 2;
     const x = boxX + this.inputPaddingX;
@@ -319,15 +362,62 @@ class Day0QuizLog {
     pop();
   }
 
+  _wrapParagraphs(paragraphs, maxWidth) {
+    if (this.userFont) textFont(this.userFont);
+    textSize(this.fontSize);
+    const out = [];
+    for (const para of paragraphs) {
+      const words = para.split(/\s+/);
+      let line = "";
+      for (const word of words) {
+        const test = line ? line + " " + word : word;
+        if (textWidth(test) <= maxWidth) line = test;
+        else {
+          if (line) out.push(line);
+          if (textWidth(word) > maxWidth) {
+            for (const chunk of this._hardBreakWord(word, maxWidth))
+              out.push(chunk);
+            line = out.pop();
+          } else {
+            line = word;
+          }
+        }
+      }
+      if (line) out.push(line);
+    }
+    return out;
+  }
+
+  _hardBreakWord(word, maxWidth) {
+    const parts = [];
+    let chunk = "";
+    for (const ch of Array.from(word)) {
+      const test = chunk + ch;
+      if (textWidth(test) <= maxWidth) chunk = test;
+      else {
+        if (chunk) parts.push(chunk);
+        chunk = ch;
+      }
+    }
+    if (chunk) parts.push(chunk);
+    return parts;
+  }
+
   _hit(btn) {
     return this._inRect(mouseX, mouseY, btn.x, btn.y, btn.w, btn.h);
   }
   _inRect(px, py, rx, ry, rw, rh) {
     return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
   }
+
   _placeholderText() {
     const n = Math.min(this.questionCount + 1, this.inputLimit);
     return `Q${n}: ${this.placeholderBase}`;
   }
+
+  _easeInOutCubic(x) {
+    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  }
 }
+
 window.Day0QuizLog = Day0QuizLog;

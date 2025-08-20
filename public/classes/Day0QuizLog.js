@@ -336,7 +336,7 @@ class Day0QuizLog {
       boxW = this.w2;
     }
 
-    const w = boxW - 2 * this.inputPaddingX;
+    const w = boxW - 2 * this.inputPaddingX + 15;
     const y = boxY + row * this.leading + (this.leading - this.inputH) / 2;
     const x = boxX + this.inputPaddingX;
 

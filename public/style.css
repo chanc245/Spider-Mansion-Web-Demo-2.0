@@ -12,15 +12,14 @@ canvas {
   font-size: 20px;
   padding: 10px 10px;
   border: 0px solid #000;
-  border-radius: 8px;
-  background: #ffffff;
+  border-radius: 5px;
+  background: #ffffff76;
   color: #000000;
 
-  outline: none; /* remove default focus outline */
   box-sizing: border-box;
 }
 
 .notebook-input::placeholder {
-  color: #777; /* style the placeholder text */
+  color: #777;
   font-style: italic;
 }

@@ -102,7 +102,7 @@ const vnScript = [
     charName: "Me",
     bg: "assets/bg/bg_pr_3f_Attic.png",
     text: "Um… are there no adults around? Like the owner of the mansion, perhaps…?",
-    charCG: "assets/charImg/char_ara_smiling.png",
+    charCG: "assets/charImg/char_ara_normal.png",
   },
   {
     charName: "???",
@@ -150,19 +150,19 @@ const vnScript = [
     charName: "Eva",
     bg: "assets/bg/bg_pr_3f_Attic.png",
     text: "No way! I’m bored right now. I won’t sleep until you play with me.",
-    charCG: "assets/charImg/char_ara_normal.png",
+    charCG: "assets/charImg/char_ara_blank.png",
   },
   {
     charName: " ",
     bg: "assets/bg/bg_pr_3f_Attic.png",
     text: "She seemed quite stubborn. It didn’t seem like she would go to bed unless I entertained her. ",
-    charCG: "assets/charImg/char_ara_normal.png",
+    charCG: "assets/charImg/char_ara_blank.png",
   },
   {
     charName: " ",
     bg: "assets/bg/bg_pr_3f_Attic.png",
     text: "Fortunately, I had plenty of experience putting my younger siblings to bed. In moments like this, the best strategy was to play along just enough to tire her out.",
-    charCG: "assets/charImg/char_ara_normal.png",
+    charCG: "assets/charImg/char_ara_blank.png",
   },
   {
     charName: "Me",
@@ -200,9 +200,45 @@ const vnScript = [
     text: "Come and sit down with me!",
     charCG: "assets/charImg/char_ara_smiling.png",
   },
+  // =====Explaining Lateral Thinking Puzzle=====
   {
     charName: "Eva",
     bg: "assets/bg/bg_pr_3f_Attic_cg.png",
-    text: "[insert description for laterial thinking puzzle :)]",
+    text: "Okay, here’s how it works! I’ll give you a scenario, and your job is to figure out the puzzle by asking me questions!",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "Buuut—there’s a catch! I can only answer with YES, NO, or DOESN’T RELATE!",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "…Oh, but since this is your first time, I might give you a little nudge here and there.",
+  },
+  {
+    charName: "Me",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "Scenario? Puzzle?",
+  },
+  {
+    charName: " ",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "I barely had time to process all these rules for a game I’d never even heard of, and before I could ask another question—",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "Ah! Let’s just start! You’ll get the hang of it while we play!",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "Tonight’s question isssss—",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "I built a house, but the guests didn’t realize it was there and accidentally entered. Afterward, the guests, who were trapped in the house, became my dinner. Who am I?",
   },
 ];

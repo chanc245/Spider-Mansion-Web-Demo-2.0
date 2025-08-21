@@ -44,10 +44,10 @@ class Day0Quiz {
   }
 
   preload() {
-    this.bg = loadImage("assets/bg_quiz_day0_attic.png");
-    this.notebookLog = loadImage("assets/notebook_QuestionLog_1.png");
-    this.notebookClues = loadImage("assets/notebook_Clues.png");
-    this.notebookRules = loadImage("assets/notebook_Rules.png");
+    this.bg = loadImage("assets/quiz/bg_quiz_day0_attic.png");
+    this.notebookLog = loadImage("assets/quiz/notebook_QuestionLog_1.png");
+    this.notebookClues = loadImage("assets/quiz/notebook_Clues.png");
+    this.notebookRules = loadImage("assets/quiz/notebook_Rules.png");
     this.userFont = loadFont("assets/fonts/BradleyHandITCTT-Bold.ttf");
   }
 

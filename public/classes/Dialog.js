@@ -1,3 +1,4 @@
+// public/classes/Dialog.js
 class Dialog {
   /**
    * VN-style dialog box with typewriter text + blinking advance arrow.
@@ -7,12 +8,12 @@ class Dialog {
    * Per-line fields:
    * { bg, text, charCG, soundEffect, charName, stopSound, fadeSoundMs }
    *
-   * stopSound can be:
-   *  - string: "path" or "ALL"
-   *  - object: { path: "path" | "ALL", fadeMs: number }
-   * If fadeSoundMs is present on the line and stopSound is a string, it is used.
+   * Audio is delegated to an injected AudioManager instance via opts.audio.
    */
   constructor(opts = {}) {
+    // Injected audio manager (optional but recommended)
+    this.audio = opts.audio ?? null;
+
     // Box placement
     this.x = opts.x ?? 137;
     this.y = opts.y ?? 396;
@@ -40,7 +41,7 @@ class Dialog {
     this._lastTypeTs = 0;
     this._nextDelayMs = this.charMs;
 
-    // Blinking advance arrow (">")
+    // Blinking advance arrow
     this.arrowBlinkPeriodMs = opts.arrowBlinkPeriodMs ?? 900;
     this.arrowAlpha = 0;
     this.showArrow = false;
@@ -63,11 +64,11 @@ class Dialog {
     this.bgAlpha = 0;
     this._bgFade = new Tween({ from: 255, to: 255, dur: this.bgFadeMs });
 
-    // Preserve last BG on end; avoid flash by holding a bit after finish
-    this.preserveBgOnEnd = true; // keep last VN BG visible after dialog ends
-    this._uiOnlyFade = false; // when true, only UI/CG fade during end fade
-    this.holdBgAfterFinishMs = opts.holdBgAfterFinishMs ?? 15000; // handoff buffer to avoid flash
-    this._holdBgUntil = 0; // timestamp to keep drawing BG
+    // Preserve last BG at end to avoid flash
+    this.preserveBgOnEnd = true;
+    this._uiOnlyFade = false;
+    this.holdBgAfterFinishMs = opts.holdBgAfterFinishMs ?? 150; // buffer frames
+    this._holdBgUntil = 0;
 
     // Script & state
     this.script = [];
@@ -80,8 +81,6 @@ class Dialog {
     this.boxImg = null;
     this._imgCache = new Map(); // bg cache
     this._cgCache = new Map(); // cg cache
-    this._audioCache = new Map(); // path -> HTMLAudioElement
-    this._audioFades = new Map(); // path -> cancel function
 
     // Current visuals (BG)
     this.prevBg = null;
@@ -144,14 +143,10 @@ class Dialog {
 
     if (!this._running && !this._fadingOut && !stillHoldingBg) return;
 
-    // Overall dialog (UI/CG) fade
     this.alpha = this._fade.update();
-
-    // Tweens
     this.cgAlpha = this._cgFade.update();
     this.bgAlpha = this._bgFade.update();
 
-    // Typewriter + arrow
     this._updateTyping();
     this._updateArrowBlink();
 
@@ -172,19 +167,12 @@ class Dialog {
     if (!this._running && !this._fadingOut && !stillHoldingBg) return;
 
     const globalA = this.alpha;
-
-    // --- BG layer alpha policy ---
-    // 1) While running normally -> use globalA
-    // 2) During end fade with UI-only mode -> force 255 (BG stays solid)
-    // 3) After end while holding BG -> force 255 (BG stays solid for handoff)
     let bgLayerA = globalA;
-    if (this._fadingOut && this._uiOnlyFade) {
+    if (this._fadingOut && this._uiOnlyFade) bgLayerA = 255;
+    else if (!this._running && !this._fadingOut && stillHoldingBg)
       bgLayerA = 255;
-    } else if (!this._running && !this._fadingOut && stillHoldingBg) {
-      bgLayerA = 255; // <-- this fixes the flash
-    }
 
-    // ---------- Background crossfade ----------
+    // --- BG crossfade ---
     if (this.prevBg && (this._bgFade.active || this.bgAlpha < 255)) {
       push();
       tint(255, (255 - this.bgAlpha) * (bgLayerA / 255));
@@ -198,10 +186,10 @@ class Dialog {
       pop();
     }
 
-    // If we’re only holding BG after finish, do not draw CG/UI
+    // If only holding BG, skip CG/UI
     if (!this._running && !this._fadingOut && stillHoldingBg) return;
 
-    // ---------- Character CG ----------
+    // --- CG (first in = fade in, CG->CG = instant, CG->none = fade out) ---
     if (this.prevCG && (this._cgFade.active || this.cgAlpha < 255)) {
       push();
       tint(255, (255 - this.cgAlpha) * (globalA / 255));
@@ -215,9 +203,9 @@ class Dialog {
       pop();
     }
 
-    // ---------- Dialog box (UI) ----------
+    // --- Dialog box (UI) ---
     push();
-    const a = globalA; // UI alpha
+    const a = globalA;
     if (this.boxImg) {
       tint(255, a);
       image(this.boxImg, this.x, this.y, this.w, this.h);
@@ -235,28 +223,22 @@ class Dialog {
     // Name
     if (cur && cur.charName) {
       const nr = this._nameRect;
-      const nx = this.x + nr.ox;
-      const ny = this.y + nr.oy;
-      const nw = nr.w;
-      const nh = nr.h;
-
+      const nx = this.x + nr.ox,
+        ny = this.y + nr.oy;
       if (this.font) textFont(this.font);
       textSize(this.nameSize);
       textLeading(this.nameSize * 1.25);
       textAlign(CENTER, CENTER);
       noStroke();
       fill(0, 0, 0, a);
-      text(cur.charName, nx, ny, nw, nh);
+      text(cur.charName, nx, ny, nr.w, nr.h);
     }
 
     // Body (typewriter)
     if (cur && typeof cur.text === "string") {
       const tr = this._textRect;
-      const tx = this.x + tr.ox;
-      const ty = this.y + tr.oy;
-      const tw = tr.w;
-      const th = tr.h;
-
+      const tx = this.x + tr.ox,
+        ty = this.y + tr.oy;
       if (this.font) textFont(this.font);
       textSize(this.textSize);
       textLeading(this.leading);
@@ -268,20 +250,17 @@ class Dialog {
         ? this._fullText.substring(0, this._visibleChars)
         : this._fullText;
 
-      const lines = this._wrap(toShow, tw);
-      const maxLines = Math.max(1, Math.floor(th / this.leading));
+      const lines = this._wrap(toShow, tr.w);
+      const maxLines = Math.max(1, Math.floor(tr.h / this.leading));
       for (let i = 0; i < Math.min(lines.length, maxLines); i++) {
         text(lines[i], tx, ty + i * this.leading);
       }
     }
 
-    // Blinking advance arrow
+    // Advance arrow
     if (this.showArrow && a > 0) {
-      const marginX = 18;
-      const marginY = 15;
-      const ax = this.x + this.w - marginX;
-      const ay = this.y + this.h - marginY;
-
+      const ax = this.x + this.w - 18;
+      const ay = this.y + this.h - 15;
       textAlign(RIGHT, BOTTOM);
       if (this.font) textFont(this.font);
       textSize(24);
@@ -289,24 +268,20 @@ class Dialog {
       fill(0, 0, 0, Math.min(255, this.arrowAlpha * (a / 255)));
       text(">", ax, ay);
     }
-
     pop();
   }
 
   next() {
     if (!this._running) return;
 
-    // If typing, first click/press completes the line
     if (this._typing && this._visibleChars < this._fullText.length) {
       this._revealAll();
       return;
     }
 
-    // Otherwise, advance line
     this.index++;
-
     if (this.index >= this.script.length) {
-      // End: remove CG instantly, fade only UI, and hold BG briefly to avoid flash
+      // End: remove CG instantly, fade UI only, hold BG a moment
       this._clearCgImmediately();
       this._fadingOut = true;
       this._uiOnlyFade = !!this.preserveBgOnEnd;
@@ -317,7 +292,6 @@ class Dialog {
 
     this._applyLine(this.script[this.index], false);
 
-    // If we advanced during a partial dialog fade-out, re-brighten quickly
     if (this.alpha < 200 && !this._fadingOut) {
       this._fade.start(this.alpha, 255, Math.max(120, this.fadeInMs * 0.5));
     }
@@ -340,7 +314,7 @@ class Dialog {
   // ---------- internal ----------
 
   _applyLine(line) {
-    // --- BG CROSSFADE POLICY ---
+    // --- BG crossfade ---
     const newBgPath = line.bg || null;
     const hadBg = !!this.curBgPath;
 
@@ -351,7 +325,7 @@ class Dialog {
       this.curBg = null;
       this.curBgPath = null;
       if (hadBg) {
-        this._bgFade.start(0, 255, this.bgFadeMs); // render uses (255-bgAlpha) on prev
+        this._bgFade.start(0, 255, this.bgFadeMs);
         this.bgAlpha = 0;
       } else {
         this._bgFade.start(255, 255, 1);
@@ -371,20 +345,22 @@ class Dialog {
       });
     }
 
-    // --- STOP SOUND (with optional fade) ---
-    if (line.stopSound) {
+    // --- stop sound (optional fade) ---
+    if (this.audio && line.stopSound) {
       const { path, fadeMs } = this._normalizeStopSound(
         line.stopSound,
         line.fadeSoundMs
       );
-      if (path === "ALL") this._stopAllSfx(fadeMs);
-      else this._stopSfx(path, fadeMs);
+      if (path === "ALL") this.audio.stopAll({ fadeMs: fadeMs ?? 0 });
+      else this.audio.stop(path, { fadeMs: fadeMs ?? 0 });
     }
 
-    // --- PLAY SOUND ---
-    if (line.soundEffect) this._playSfx(line.soundEffect);
+    // --- play sound ---
+    if (this.audio && line.soundEffect) {
+      this.audio.play(line.soundEffect, { loop: false, volume: 1, from: 0 });
+    }
 
-    // --- CG POLICY (first CG fades in; CG->CG instant swap; CG->none fades out) ---
+    // --- CG policy ---
     const newCGPath = line.charCG || null;
     const hadPrevCG = !!this.curCGPath;
 
@@ -394,7 +370,7 @@ class Dialog {
         this.prevCGPath = this.curCGPath;
         this.curCG = null;
         this.curCGPath = null;
-        this._cgFade.start(0, 255, this.cgFadeMs); // use 255 - cgAlpha on prev in render
+        this._cgFade.start(0, 255, this.cgFadeMs);
         this.cgAlpha = 0;
       } else {
         this.prevCG = null;
@@ -403,7 +379,6 @@ class Dialog {
         this.cgAlpha = 255;
       }
     } else if (!hadPrevCG) {
-      // none -> CG : fade in
       this.prevCG = null;
       this.prevCGPath = null;
       this._loadImage(newCGPath, this._cgCache, (img) => {
@@ -413,7 +388,6 @@ class Dialog {
         this.cgAlpha = 0;
       });
     } else {
-      // CG -> CG : instant swap
       this.prevCG = null;
       this.prevCGPath = null;
       this._cgFade.start(255, 255, 1);
@@ -429,7 +403,7 @@ class Dialog {
       }
     }
 
-    // --- TYPEWRITER SETUP ---
+    // --- Typewriter ---
     const textStr = typeof line.text === "string" ? line.text : "";
     this._startTyping(textStr);
   }
@@ -443,7 +417,6 @@ class Dialog {
     this.curCGPath = null;
   }
 
-  // Typewriter engine
   _startTyping(textStr) {
     this._fullText = textStr;
     this._visibleChars = 0;
@@ -452,7 +425,6 @@ class Dialog {
     this._lastTypeTs = millis();
     this._nextDelayMs = this.charMs;
 
-    // Arrow state
     this.showArrow = !this._typing;
     this._arrowStartMs = millis();
   }
@@ -472,9 +444,9 @@ class Dialog {
       this._visibleChars++;
 
       const ch = this._fullText[this._visibleChars - 1];
-      if (/[\,\.\!\?\:\;]/.test(ch))
-        this._nextDelayMs = this.charMs + this.punctExtraMs;
-      else this._nextDelayMs = this.charMs;
+      this._nextDelayMs = /[\,\.\!\?\:\;]/.test(ch)
+        ? this.charMs + this.punctExtraMs
+        : this.charMs;
     }
 
     if (this._visibleChars >= this._fullText.length) {
@@ -520,24 +492,6 @@ class Dialog {
     );
   }
 
-  _playSfx(path) {
-    let audio = this._audioCache.get(path);
-    if (!audio) {
-      try {
-        audio = new Audio(path);
-        this._audioCache.set(path, audio);
-      } catch {
-        return;
-      }
-    }
-    this._cancelFade(path);
-    try {
-      audio.currentTime = 0;
-      if (typeof audio.volume === "number") audio.volume = 1;
-      audio.play().catch(() => {});
-    } catch {}
-  }
-
   _normalizeStopSound(stopSound, fallbackFadeMs) {
     if (typeof stopSound === "string") {
       return {
@@ -559,69 +513,6 @@ class Dialog {
       path: "ALL",
       fadeMs: typeof fallbackFadeMs === "number" ? fallbackFadeMs : null,
     };
-  }
-
-  _stopSfx(path, fadeMs = null) {
-    const audio = this._audioCache.get(path);
-    if (!audio) return;
-    if (!fadeMs || fadeMs <= 0) {
-      this._cancelFade(path);
-      try {
-        audio.pause();
-        audio.currentTime = 0;
-        if (typeof audio.volume === "number") audio.volume = 1;
-      } catch {}
-      return;
-    }
-    this._fadeOutSfx(path, fadeMs);
-  }
-
-  _stopAllSfx(fadeMs = null) {
-    for (const [path] of this._audioCache.entries())
-      this._stopSfx(path, fadeMs);
-  }
-
-  _fadeOutSfx(path, durationMs) {
-    const audio = this._audioCache.get(path);
-    if (!audio) return;
-
-    this._cancelFade(path);
-
-    let start = null;
-    const startVol = typeof audio.volume === "number" ? audio.volume : 1;
-
-    const tick = (ts) => {
-      if (start === null) start = ts;
-      const t = Math.min(1, (ts - start) / Math.max(1, durationMs));
-      const vol = startVol * (1 - t);
-      try {
-        if (typeof audio.volume === "number") audio.volume = Math.max(0, vol);
-      } catch {}
-      if (t < 1) {
-        const id = requestAnimationFrame(tick);
-        this._audioFades.set(path, () => cancelAnimationFrame(id));
-      } else {
-        try {
-          audio.pause();
-          audio.currentTime = 0;
-          if (typeof audio.volume === "number") audio.volume = 1;
-        } catch {}
-        this._audioFades.delete(path);
-      }
-    };
-
-    const id = requestAnimationFrame(tick);
-    this._audioFades.set(path, () => cancelAnimationFrame(id));
-  }
-
-  _cancelFade(path) {
-    const cancel = this._audioFades.get(path);
-    if (cancel) {
-      try {
-        cancel();
-      } catch {}
-      this._audioFades.delete(path);
-    }
   }
 
   _wrap(textStr, maxWidth) {

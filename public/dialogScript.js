@@ -96,7 +96,7 @@ const vnScript = [
     charName: " ",
     bg: "assets/bg/bg_pr_3f_Attic.png",
     text: "The girl appeared to be around 12 or 13 years old. Her dull blonde hair caught the moonlight, giving it a soft glow, while her ruby-like eyes shone brightly in the dim light.",
-    charCG: "assets/charImg/char_ara_smiling.png",
+    charCG: "assets/charImg/char_ara_normal.png",
   },
   {
     charName: "Me",
@@ -193,5 +193,16 @@ const vnScript = [
     bg: "assets/bg/bg_pr_3f_Attic.png",
     text: "Don’t worry, I’ll teach you how to play it!",
     charCG: "assets/charImg/char_ara_smiling.png",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic.png",
+    text: "Come and sit down with me!",
+    charCG: "assets/charImg/char_ara_smiling.png",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "[insert description for laterial thinking puzzle :)]",
   },
 ];

@@ -28,11 +28,11 @@ class Dialog {
     // Text metrics
     this.textSize = opts.textSize ?? 20;
     this.leading = opts.leading ?? 26;
-    this.nameSize = opts.nameSize ?? 20; // per your tweak
+    this.nameSize = opts.nameSize ?? 20;
 
     // Typewriter options
-    this.charMs = opts.charMs ?? 20; // ms per character
-    this.punctExtraMs = opts.punctExtraMs ?? 80; // extra pause after punctuation
+    this.charMs = opts.charMs ?? 20;
+    this.punctExtraMs = opts.punctExtraMs ?? 80;
     this._typing = false;
     this._fullText = "";
     this._visibleChars = 0;
@@ -40,13 +40,13 @@ class Dialog {
     this._lastTypeTs = 0;
     this._nextDelayMs = this.charMs;
 
-    // Blinking advance arrow ("▶")
-    this.arrowBlinkPeriodMs = opts.arrowBlinkPeriodMs ?? 900; // full cycle
+    // Blinking advance arrow (">")
+    this.arrowBlinkPeriodMs = opts.arrowBlinkPeriodMs ?? 900;
     this.arrowAlpha = 0;
-    this.showArrow = false; // becomes true when line fully revealed
-    this._arrowStartMs = 0; // millis() baseline
+    this.showArrow = false;
+    this._arrowStartMs = 0;
 
-    // Overall dialog fade
+    // Overall dialog fade (UI/CG)
     this.fadeInMs = opts.fadeInMs ?? 250;
     this.fadeOutMs = opts.fadeOutMs ?? 200;
     this.alpha = 0;
@@ -55,13 +55,19 @@ class Dialog {
 
     // Character CG transitions
     this.cgFadeMs = opts.cgFadeMs ?? 250;
-    this.cgAlpha = 10; // keep your timing tweak
+    this.cgAlpha = 10;
     this._cgFade = new Tween({ from: 255, to: 255, dur: this.cgFadeMs });
 
     // Background transitions
     this.bgFadeMs = opts.bgFadeMs ?? 300;
-    this.bgAlpha = 0; // keep your timing tweak
+    this.bgAlpha = 0;
     this._bgFade = new Tween({ from: 255, to: 255, dur: this.bgFadeMs });
+
+    // Preserve last BG on end; avoid flash by holding a bit after finish
+    this.preserveBgOnEnd = true; // keep last VN BG visible after dialog ends
+    this._uiOnlyFade = false; // when true, only UI/CG fade during end fade
+    this.holdBgAfterFinishMs = opts.holdBgAfterFinishMs ?? 15000; // handoff buffer to avoid flash
+    this._holdBgUntil = 0; // timestamp to keep drawing BG
 
     // Script & state
     this.script = [];
@@ -75,9 +81,7 @@ class Dialog {
     this._imgCache = new Map(); // bg cache
     this._cgCache = new Map(); // cg cache
     this._audioCache = new Map(); // path -> HTMLAudioElement
-
-    // Track active fades: path -> cancel function
-    this._audioFades = new Map();
+    this._audioFades = new Map(); // path -> cancel function
 
     // Current visuals (BG)
     this.prevBg = null;
@@ -123,30 +127,34 @@ class Dialog {
     this._running = true;
     this._finished = false;
     this._fadingOut = false;
+    this._uiOnlyFade = false;
+    this._holdBgUntil = 0;
 
     this.alpha = 0;
     this._fade.start(0, 255, this.fadeInMs);
 
-    this._applyLine(this.script[this.index], /*isFirst*/ true);
+    this._applyLine(this.script[this.index], true);
   }
 
   update() {
-    if (!this._running && !this._fadingOut) return;
+    const stillHoldingBg =
+      this._holdBgUntil &&
+      millis() < this._holdBgUntil &&
+      (this.curBg || this.prevBg);
 
-    // Overall dialog fade
+    if (!this._running && !this._fadingOut && !stillHoldingBg) return;
+
+    // Overall dialog (UI/CG) fade
     this.alpha = this._fade.update();
 
     // Tweens
     this.cgAlpha = this._cgFade.update();
     this.bgAlpha = this._bgFade.update();
 
-    // Typewriter tick
+    // Typewriter + arrow
     this._updateTyping();
-
-    // Arrow blink update
     this._updateArrowBlink();
 
-    // Done fading out whole dialog?
     if (this._fadingOut && !this._fade.active && this.alpha <= 1) {
       this._fadingOut = false;
       this._running = false;
@@ -156,25 +164,44 @@ class Dialog {
   }
 
   render() {
-    if (!this._running && !this._fadingOut) return;
+    const stillHoldingBg =
+      this._holdBgUntil &&
+      millis() < this._holdBgUntil &&
+      (this.curBg || this.prevBg);
 
-    const globalA = this.alpha; // multiply sub-layers for coherent fades
+    if (!this._running && !this._fadingOut && !stillHoldingBg) return;
+
+    const globalA = this.alpha;
+
+    // --- BG layer alpha policy ---
+    // 1) While running normally -> use globalA
+    // 2) During end fade with UI-only mode -> force 255 (BG stays solid)
+    // 3) After end while holding BG -> force 255 (BG stays solid for handoff)
+    let bgLayerA = globalA;
+    if (this._fadingOut && this._uiOnlyFade) {
+      bgLayerA = 255;
+    } else if (!this._running && !this._fadingOut && stillHoldingBg) {
+      bgLayerA = 255; // <-- this fixes the flash
+    }
 
     // ---------- Background crossfade ----------
     if (this.prevBg && (this._bgFade.active || this.bgAlpha < 255)) {
       push();
-      tint(255, (255 - this.bgAlpha) * (globalA / 255));
+      tint(255, (255 - this.bgAlpha) * (bgLayerA / 255));
       image(this.prevBg, 0, 0, width, height);
       pop();
     }
     if (this.curBg) {
       push();
-      tint(255, this.bgAlpha * (globalA / 255));
+      tint(255, this.bgAlpha * (bgLayerA / 255));
       image(this.curBg, 0, 0, width, height);
       pop();
     }
 
-    // ---------- Character CG (first=fade in, CG->CG=instant swap, CG->none=fade out) ----------
+    // If we’re only holding BG after finish, do not draw CG/UI
+    if (!this._running && !this._fadingOut && stillHoldingBg) return;
+
+    // ---------- Character CG ----------
     if (this.prevCG && (this._cgFade.active || this.cgAlpha < 255)) {
       push();
       tint(255, (255 - this.cgAlpha) * (globalA / 255));
@@ -188,9 +215,9 @@ class Dialog {
       pop();
     }
 
-    // ---------- Dialog box ----------
+    // ---------- Dialog box (UI) ----------
     push();
-    const a = globalA;
+    const a = globalA; // UI alpha
     if (this.boxImg) {
       tint(255, a);
       image(this.boxImg, this.x, this.y, this.w, this.h);
@@ -248,7 +275,7 @@ class Dialog {
       }
     }
 
-    // Blinking advance arrow (bottom-right inside the box)
+    // Blinking advance arrow
     if (this.showArrow && a > 0) {
       const marginX = 18;
       const marginY = 15;
@@ -269,7 +296,7 @@ class Dialog {
   next() {
     if (!this._running) return;
 
-    // If we're currently typing this line, first click/press completes the line
+    // If typing, first click/press completes the line
     if (this._typing && this._visibleChars < this._fullText.length) {
       this._revealAll();
       return;
@@ -279,13 +306,16 @@ class Dialog {
     this.index++;
 
     if (this.index >= this.script.length) {
-      // Fade out the whole dialog at the end
+      // End: remove CG instantly, fade only UI, and hold BG briefly to avoid flash
+      this._clearCgImmediately();
       this._fadingOut = true;
+      this._uiOnlyFade = !!this.preserveBgOnEnd;
+      this._holdBgUntil = millis() + this.holdBgAfterFinishMs;
       this._fade.start(this.alpha, 0, this.fadeOutMs);
       return;
     }
 
-    this._applyLine(this.script[this.index], /*isFirst*/ false);
+    this._applyLine(this.script[this.index], false);
 
     // If we advanced during a partial dialog fade-out, re-brighten quickly
     if (this.alpha < 200 && !this._fadingOut) {
@@ -309,7 +339,7 @@ class Dialog {
 
   // ---------- internal ----------
 
-  _applyLine(line, isFirst) {
+  _applyLine(line) {
     // --- BG CROSSFADE POLICY ---
     const newBgPath = line.bg || null;
     const hadBg = !!this.curBgPath;
@@ -359,7 +389,6 @@ class Dialog {
     const hadPrevCG = !!this.curCGPath;
 
     if (!newCGPath) {
-      // CG -> none : fade out previous CG if any
       if (hadPrevCG) {
         this.prevCG = this.curCG;
         this.prevCGPath = this.curCGPath;
@@ -368,7 +397,6 @@ class Dialog {
         this._cgFade.start(0, 255, this.cgFadeMs); // use 255 - cgAlpha on prev in render
         this.cgAlpha = 0;
       } else {
-        // no CG either side
         this.prevCG = null;
         this.prevCGPath = null;
         this._cgFade.start(255, 255, 1);
@@ -385,7 +413,7 @@ class Dialog {
         this.cgAlpha = 0;
       });
     } else {
-      // CG -> CG : instant swap (NO early return; still finish line setup)
+      // CG -> CG : instant swap
       this.prevCG = null;
       this.prevCGPath = null;
       this._cgFade.start(255, 255, 1);
@@ -401,16 +429,25 @@ class Dialog {
       }
     }
 
-    // --- TYPEWRITER SETUP (always run, even after CG->CG) ---
+    // --- TYPEWRITER SETUP ---
     const textStr = typeof line.text === "string" ? line.text : "";
     this._startTyping(textStr);
+  }
+
+  _clearCgImmediately() {
+    this._cgFade.active = false;
+    this.cgAlpha = 255;
+    this.prevCG = null;
+    this.prevCGPath = null;
+    this.curCG = null;
+    this.curCGPath = null;
   }
 
   // Typewriter engine
   _startTyping(textStr) {
     this._fullText = textStr;
     this._visibleChars = 0;
-    this._typing = textStr.length > 0; // if empty, no typing; arrow will show immediately
+    this._typing = textStr.length > 0;
     this._typeAccMs = 0;
     this._lastTypeTs = millis();
     this._nextDelayMs = this.charMs;
@@ -426,7 +463,6 @@ class Dialog {
     let dt = now - this._lastTypeTs;
     this._lastTypeTs = now;
 
-    // Accumulate and reveal according to per-char delay
     this._typeAccMs += dt;
     while (
       this._typeAccMs >= this._nextDelayMs &&
@@ -435,18 +471,16 @@ class Dialog {
       this._typeAccMs -= this._nextDelayMs;
       this._visibleChars++;
 
-      // Next delay (punctuation pause)
       const ch = this._fullText[this._visibleChars - 1];
       if (/[\,\.\!\?\:\;]/.test(ch))
         this._nextDelayMs = this.charMs + this.punctExtraMs;
       else this._nextDelayMs = this.charMs;
     }
 
-    // Finished typing?
     if (this._visibleChars >= this._fullText.length) {
       this._typing = false;
       this.showArrow = true;
-      this._arrowStartMs = millis(); // reset blink phase so it starts fresh
+      this._arrowStartMs = millis();
     }
   }
 
@@ -454,20 +488,18 @@ class Dialog {
     this._visibleChars = this._fullText.length;
     this._typing = false;
     this.showArrow = true;
-    this._arrowStartMs = millis(); // start blink cleanly
+    this._arrowStartMs = millis();
   }
 
-  // Blinking arrow alpha uses a simple sine wave for smooth in/out
   _updateArrowBlink() {
     if (!this.showArrow) {
       this.arrowAlpha = 0;
       return;
     }
     const t = Math.max(0, millis() - this._arrowStartMs);
-    const phase = (t % this.arrowBlinkPeriodMs) / this.arrowBlinkPeriodMs; // 0..1
-    // map [0..1] -> [0..1] via 0.5*(1+sin(2πx - π/2)) => starts bright
+    const phase = (t % this.arrowBlinkPeriodMs) / this.arrowBlinkPeriodMs;
     const s = 0.5 * (1 + Math.sin(phase * Math.PI * 2 - Math.PI / 2));
-    this.arrowAlpha = Math.round(64 + s * 191); // keep it readable: 64..255
+    this.arrowAlpha = Math.round(64 + s * 191);
   }
 
   _loadImage(path, cache, setCb) {
@@ -498,9 +530,7 @@ class Dialog {
         return;
       }
     }
-    // If a fade-out was running for this sound, cancel it before playing again
     this._cancelFade(path);
-
     try {
       audio.currentTime = 0;
       if (typeof audio.volume === "number") audio.volume = 1;
@@ -509,7 +539,6 @@ class Dialog {
   }
 
   _normalizeStopSound(stopSound, fallbackFadeMs) {
-    // Returns { path: "path" | "ALL", fadeMs: number | null }
     if (typeof stopSound === "string") {
       return {
         path: stopSound,
@@ -535,9 +564,7 @@ class Dialog {
   _stopSfx(path, fadeMs = null) {
     const audio = this._audioCache.get(path);
     if (!audio) return;
-
     if (!fadeMs || fadeMs <= 0) {
-      // immediate stop
       this._cancelFade(path);
       try {
         audio.pause();
@@ -546,7 +573,6 @@ class Dialog {
       } catch {}
       return;
     }
-    // fade out
     this._fadeOutSfx(path, fadeMs);
   }
 
@@ -578,7 +604,7 @@ class Dialog {
         try {
           audio.pause();
           audio.currentTime = 0;
-          if (typeof audio.volume === "number") audio.volume = 1; // reset for next play
+          if (typeof audio.volume === "number") audio.volume = 1;
         } catch {}
         this._audioFades.delete(path);
       }
@@ -610,7 +636,6 @@ class Dialog {
       else {
         if (line) out.push(line);
         if (textWidth(w) > maxWidth) {
-          // hard-break long token
           let chunk = "";
           for (const ch of Array.from(w)) {
             const t = chunk + ch;

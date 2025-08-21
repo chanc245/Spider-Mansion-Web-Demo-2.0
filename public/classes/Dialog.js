@@ -1,14 +1,16 @@
 class Dialog {
   /**
-   * VN-style dialog box.
+   * VN-style dialog box with typewriter text + blinking advance arrow.
    * Name box: (x+14, y+9,  w=112, h=25) centered
    * Text box: (x+30, y+42, w=690, h=80) left/top
    *
-   * Per-line fields: { bg, text, charCG, soundEffect, charName, stopSound, fadeSoundMs }
-   * - stopSound can be:
-   *    - string: "path" or "ALL"
-   *    - object: { path: "path" | "ALL", fadeMs: number }
-   * - If fadeSoundMs (number) is present on the line, it applies to stopSound when given as a string.
+   * Per-line fields:
+   * { bg, text, charCG, soundEffect, charName, stopSound, fadeSoundMs }
+   *
+   * stopSound can be:
+   *  - string: "path" or "ALL"
+   *  - object: { path: "path" | "ALL", fadeMs: number }
+   * If fadeSoundMs is present on the line and stopSound is a string, it is used.
    */
   constructor(opts = {}) {
     // Box placement
@@ -26,7 +28,23 @@ class Dialog {
     // Text metrics
     this.textSize = opts.textSize ?? 20;
     this.leading = opts.leading ?? 26;
-    this.nameSize = opts.nameSize ?? 20;
+    this.nameSize = opts.nameSize ?? 20; // per your tweak
+
+    // Typewriter options
+    this.charMs = opts.charMs ?? 20; // ms per character
+    this.punctExtraMs = opts.punctExtraMs ?? 80; // extra pause after punctuation
+    this._typing = false;
+    this._fullText = "";
+    this._visibleChars = 0;
+    this._typeAccMs = 0;
+    this._lastTypeTs = 0;
+    this._nextDelayMs = this.charMs;
+
+    // Blinking advance arrow ("▶")
+    this.arrowBlinkPeriodMs = opts.arrowBlinkPeriodMs ?? 900; // full cycle
+    this.arrowAlpha = 0;
+    this.showArrow = false; // becomes true when line fully revealed
+    this._arrowStartMs = 0; // millis() baseline
 
     // Overall dialog fade
     this.fadeInMs = opts.fadeInMs ?? 250;
@@ -58,7 +76,7 @@ class Dialog {
     this._cgCache = new Map(); // cg cache
     this._audioCache = new Map(); // path -> HTMLAudioElement
 
-    // Track active fades to prevent conflicts: path -> cancel function
+    // Track active fades: path -> cancel function
     this._audioFades = new Map();
 
     // Current visuals (BG)
@@ -121,6 +139,12 @@ class Dialog {
     // Tweens
     this.cgAlpha = this._cgFade.update();
     this.bgAlpha = this._bgFade.update();
+
+    // Typewriter tick
+    this._updateTyping();
+
+    // Arrow blink update
+    this._updateArrowBlink();
 
     // Done fading out whole dialog?
     if (this._fadingOut && !this._fade.active && this.alpha <= 1) {
@@ -198,8 +222,8 @@ class Dialog {
       text(cur.charName, nx, ny, nw, nh);
     }
 
-    // Body
-    if (cur && cur.text) {
+    // Body (typewriter)
+    if (cur && typeof cur.text === "string") {
       const tr = this._textRect;
       const tx = this.x + tr.ox;
       const ty = this.y + tr.oy;
@@ -213,18 +237,45 @@ class Dialog {
       noStroke();
       fill(0, 0, 0, a);
 
-      const lines = this._wrap(cur.text, tw);
+      const toShow = this._typing
+        ? this._fullText.substring(0, this._visibleChars)
+        : this._fullText;
+
+      const lines = this._wrap(toShow, tw);
       const maxLines = Math.max(1, Math.floor(th / this.leading));
       for (let i = 0; i < Math.min(lines.length, maxLines); i++) {
         text(lines[i], tx, ty + i * this.leading);
       }
     }
+
+    // Blinking advance arrow (bottom-right inside the box)
+    if (this.showArrow && a > 0) {
+      const marginX = 18;
+      const marginY = 15;
+      const ax = this.x + this.w - marginX;
+      const ay = this.y + this.h - marginY;
+
+      textAlign(RIGHT, BOTTOM);
+      if (this.font) textFont(this.font);
+      textSize(24);
+      noStroke();
+      fill(0, 0, 0, Math.min(255, this.arrowAlpha * (a / 255)));
+      text(">", ax, ay);
+    }
+
     pop();
   }
 
   next() {
     if (!this._running) return;
 
+    // If we're currently typing this line, first click/press completes the line
+    if (this._typing && this._visibleChars < this._fullText.length) {
+      this._revealAll();
+      return;
+    }
+
+    // Otherwise, advance line
     this.index++;
 
     if (this.index >= this.script.length) {
@@ -308,21 +359,23 @@ class Dialog {
     const hadPrevCG = !!this.curCGPath;
 
     if (!newCGPath) {
+      // CG -> none : fade out previous CG if any
       if (hadPrevCG) {
         this.prevCG = this.curCG;
         this.prevCGPath = this.curCGPath;
         this.curCG = null;
         this.curCGPath = null;
-        this._cgFade.start(0, 255, this.cgFadeMs); // use 255-cgAlpha on prev in render
+        this._cgFade.start(0, 255, this.cgFadeMs); // use 255 - cgAlpha on prev in render
         this.cgAlpha = 0;
       } else {
+        // no CG either side
         this.prevCG = null;
         this.prevCGPath = null;
         this._cgFade.start(255, 255, 1);
         this.cgAlpha = 255;
       }
     } else if (!hadPrevCG) {
-      // first CG: fade in
+      // none -> CG : fade in
       this.prevCG = null;
       this.prevCGPath = null;
       this._loadImage(newCGPath, this._cgCache, (img) => {
@@ -332,20 +385,89 @@ class Dialog {
         this.cgAlpha = 0;
       });
     } else {
-      // CG -> CG : instant swap (no fade)
+      // CG -> CG : instant swap (NO early return; still finish line setup)
       this.prevCG = null;
       this.prevCGPath = null;
       this._cgFade.start(255, 255, 1);
       this.cgAlpha = 255;
 
-      if (newCGPath === this.curCGPath) return;
-      const keep = this.curCG;
-      const keepPath = this.curCGPath;
-      this._loadImage(newCGPath, this._cgCache, (img) => {
-        this.curCG = img || keep;
-        this.curCGPath = img ? newCGPath : keepPath;
-      });
+      if (newCGPath !== this.curCGPath) {
+        const keep = this.curCG;
+        const keepPath = this.curCGPath;
+        this._loadImage(newCGPath, this._cgCache, (img) => {
+          this.curCG = img || keep;
+          this.curCGPath = img ? newCGPath : keepPath;
+        });
+      }
     }
+
+    // --- TYPEWRITER SETUP (always run, even after CG->CG) ---
+    const textStr = typeof line.text === "string" ? line.text : "";
+    this._startTyping(textStr);
+  }
+
+  // Typewriter engine
+  _startTyping(textStr) {
+    this._fullText = textStr;
+    this._visibleChars = 0;
+    this._typing = textStr.length > 0; // if empty, no typing; arrow will show immediately
+    this._typeAccMs = 0;
+    this._lastTypeTs = millis();
+    this._nextDelayMs = this.charMs;
+
+    // Arrow state
+    this.showArrow = !this._typing;
+    this._arrowStartMs = millis();
+  }
+
+  _updateTyping() {
+    if (!this._typing) return;
+    const now = millis();
+    let dt = now - this._lastTypeTs;
+    this._lastTypeTs = now;
+
+    // Accumulate and reveal according to per-char delay
+    this._typeAccMs += dt;
+    while (
+      this._typeAccMs >= this._nextDelayMs &&
+      this._visibleChars < this._fullText.length
+    ) {
+      this._typeAccMs -= this._nextDelayMs;
+      this._visibleChars++;
+
+      // Next delay (punctuation pause)
+      const ch = this._fullText[this._visibleChars - 1];
+      if (/[\,\.\!\?\:\;]/.test(ch))
+        this._nextDelayMs = this.charMs + this.punctExtraMs;
+      else this._nextDelayMs = this.charMs;
+    }
+
+    // Finished typing?
+    if (this._visibleChars >= this._fullText.length) {
+      this._typing = false;
+      this.showArrow = true;
+      this._arrowStartMs = millis(); // reset blink phase so it starts fresh
+    }
+  }
+
+  _revealAll() {
+    this._visibleChars = this._fullText.length;
+    this._typing = false;
+    this.showArrow = true;
+    this._arrowStartMs = millis(); // start blink cleanly
+  }
+
+  // Blinking arrow alpha uses a simple sine wave for smooth in/out
+  _updateArrowBlink() {
+    if (!this.showArrow) {
+      this.arrowAlpha = 0;
+      return;
+    }
+    const t = Math.max(0, millis() - this._arrowStartMs);
+    const phase = (t % this.arrowBlinkPeriodMs) / this.arrowBlinkPeriodMs; // 0..1
+    // map [0..1] -> [0..1] via 0.5*(1+sin(2πx - π/2)) => starts bright
+    const s = 0.5 * (1 + Math.sin(phase * Math.PI * 2 - Math.PI / 2));
+    this.arrowAlpha = Math.round(64 + s * 191); // keep it readable: 64..255
   }
 
   _loadImage(path, cache, setCb) {
@@ -381,7 +503,6 @@ class Dialog {
 
     try {
       audio.currentTime = 0;
-      // Restore to full volume if a previous fade reduced it
       if (typeof audio.volume === "number") audio.volume = 1;
       audio.play().catch(() => {});
     } catch {}
@@ -430,9 +551,8 @@ class Dialog {
   }
 
   _stopAllSfx(fadeMs = null) {
-    for (const [path] of this._audioCache.entries()) {
+    for (const [path] of this._audioCache.entries())
       this._stopSfx(path, fadeMs);
-    }
   }
 
   _fadeOutSfx(path, durationMs) {
@@ -455,7 +575,6 @@ class Dialog {
         const id = requestAnimationFrame(tick);
         this._audioFades.set(path, () => cancelAnimationFrame(id));
       } else {
-        // finished
         try {
           audio.pause();
           audio.currentTime = 0;
@@ -491,6 +610,7 @@ class Dialog {
       else {
         if (line) out.push(line);
         if (textWidth(w) > maxWidth) {
+          // hard-break long token
           let chunk = "";
           for (const ch of Array.from(w)) {
             const t = chunk + ch;

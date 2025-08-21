@@ -18,7 +18,7 @@ class Day0Quiz {
     this.nbSlide = new Tween({ from: 0, to: 1, dur: this.nbInDur }); // dur will be overridden per direction
 
     // state
-    this.quizState = true; // at bottom
+    this.quizState = false; // at bottom
     this.NOTEBOOK_W = 815;
     this.NOTEBOOK_H = 510;
     this.notebookX = 0;

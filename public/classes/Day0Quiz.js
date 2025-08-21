@@ -1,5 +1,9 @@
 class Day0Quiz {
-  constructor() {
+  constructor(opts = {}) {
+    // configurable slide durations (ms)
+    this.nbInDur = opts.nbInDur ?? 700; // bottom → visible
+    this.nbOutDur = opts.nbOutDur ?? 500; // visible → offscreen
+
     // assets
     this.bg = null;
     this.notebookLog = null;
@@ -9,9 +13,9 @@ class Day0Quiz {
 
     // scroll + notebook slide
     this.yOffset = 0;
-    this.scroll = new Tween({ from: 0, to: 0, dur: 700 }); // to is set in setup()
+    this.scroll = new Tween({ from: 0, to: 0, dur: 700 }); // to set in setup()
     this.nbT = 0;
-    this.nbSlide = new Tween({ from: 0, to: 1, dur: 700 });
+    this.nbSlide = new Tween({ from: 0, to: 1, dur: this.nbInDur }); // dur will be overridden per direction
 
     // state
     this.quizState = true; // at bottom
@@ -101,7 +105,7 @@ class Day0Quiz {
 
     // scroll & attic
     this.yOffset = this.scroll.update();
-    image(this.bg, 0, -this.yOffset, width, height * 2); // 1152 → 2*height
+    image(this.bg, 0, -this.yOffset, width, height * 2);
 
     // notebook slide at bottom
     const atBottom = Math.abs(this.yOffset - height) < 0.5;
@@ -110,7 +114,9 @@ class Day0Quiz {
       (want === 1 && this.nbSlide.to !== 1) ||
       (want === 0 && this.nbSlide.to !== 0)
     ) {
-      this.nbSlide.start(this.nbT, want);
+      // use independent durations per direction
+      const dur = want === 1 ? this.nbInDur : this.nbOutDur;
+      this.nbSlide.start(this.nbT, want, dur);
     }
     this.nbT = this.nbSlide.update();
 

@@ -7,11 +7,7 @@ class Day0Eva {
     this.icon = opts.icon ?? "";
     this.tone = opts.tone ?? "calm, thoughtful yet mysterious";
   }
-  setPuzzle(setup, solution) {
-    this.setup = setup;
-    this.solution = solution;
-    this.history = [];
-  }
+
   _prompt(userInput) {
     const h = this.history.length ? this.history.join(", ") : "(none yet)";
     return `
@@ -36,6 +32,7 @@ Be an easy judge on the player's answer.
 The player's current guess is: ${userInput}
 `.trim();
   }
+
   async ask(userInput) {
     this.history.push(userInput);
     const res = await fetch("/submit", {

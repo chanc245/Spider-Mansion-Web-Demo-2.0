@@ -1,4 +1,3 @@
-// public/classes/Day0Quiz.js
 class Day0Quiz {
   constructor() {
     // assets
@@ -10,32 +9,32 @@ class Day0Quiz {
 
     // scroll + notebook slide
     this.yOffset = 0;
-    this.scroll = new Tween({ from: 0, to: 576, dur: 700 });
+    this.scroll = new Tween({ from: 0, to: 0, dur: 700 }); // to is set in setup()
     this.nbT = 0;
     this.nbSlide = new Tween({ from: 0, to: 1, dur: 700 });
 
     // state
-    this.quizState = true; // bottom
+    this.quizState = true; // at bottom
     this.NOTEBOOK_W = 815;
     this.NOTEBOOK_H = 510;
     this.notebookX = 0;
     this.notebookY = 0;
-    this.currentNotebook = null; // this.notebookLog / this.notebookClues / this.notebookRules
+    this.currentNotebook = null;
 
-    // tags (overlay animators)
-    this.tagClues = null; // left-side 5→105
-    this.tagRules = null; // left-side 5→105
-    this.tagLog = null; // right-side stationary at 919, entrance 819→919, reverse 919→819
+    // tags
+    this.tagClues = null;
+    this.tagRules = null;
+    this.tagLog = null;
 
-    // per-page hidden flags (after entrance finishes)
+    // page flags
     this.cluesHiddenOnClues = false;
     this.rulesHiddenOnRules = false;
 
-    // last path markers
-    this._cluesLastPath = null; // 'logToPage' | 'pageToLog' | 'pageToBase' | null
+    // markers
+    this._cluesLastPath = null;
     this._rulesLastPath = null;
 
-    // coordination when returning to Log by clicking the Log tag
+    // return-to-log coordination
     this._returningToLog = false;
     this._pendingToLogCount = 0;
   }
@@ -53,18 +52,15 @@ class Day0Quiz {
     this.notebookY = height - this.NOTEBOOK_H;
     this.currentNotebook = this.notebookLog;
 
-    textFont(this.userFont);
-    textSize(32);
-    fill(255);
-    stroke(0);
-    strokeWeight(3);
+    // initialize scroll target to bottom of attic
+    this.scroll.start(0, height);
 
     // left-side tags
     this.tagClues = new TagOverlayAnimator({
       label: "clues",
       baseX: 5,
       y: 750,
-      overlayStartX: 5, // L→R entrance path
+      overlayStartX: 5,
       overlayEndX: 105,
       w: 100,
       h: 50,
@@ -76,7 +72,7 @@ class Day0Quiz {
       label: "rules",
       baseX: 5,
       y: 680,
-      overlayStartX: 5, // L→R entrance path
+      overlayStartX: 5,
       overlayEndX: 105,
       w: 100,
       h: 50,
@@ -88,10 +84,10 @@ class Day0Quiz {
     // right-side log tag
     this.tagLog = new TagOverlayAnimator({
       label: "log",
-      baseX: 919, // stationary/clickable spot
-      y: 680, // image-space (screen y ≈ 104)
-      overlayStartX: 819, // entrance start (left)
-      overlayEndX: 919, // entrance end (right)
+      baseX: 919,
+      y: 680,
+      overlayStartX: 819,
+      overlayEndX: 919,
       w: 100,
       h: 50,
       font: this.userFont,
@@ -105,16 +101,17 @@ class Day0Quiz {
 
     // scroll & attic
     this.yOffset = this.scroll.update();
-    image(this.bg, 0, -this.yOffset, width, 1152);
+    image(this.bg, 0, -this.yOffset, width, height * 2); // 1152 → 2*height
 
     // notebook slide at bottom
-    const atBottom = Math.abs(this.yOffset - 576) < 0.5;
+    const atBottom = Math.abs(this.yOffset - height) < 0.5;
     const want = atBottom ? 1 : 0;
     if (
       (want === 1 && this.nbSlide.to !== 1) ||
       (want === 0 && this.nbSlide.to !== 0)
-    )
+    ) {
       this.nbSlide.start(this.nbT, want);
+    }
     this.nbT = this.nbSlide.update();
 
     // run tag tweens
@@ -122,30 +119,25 @@ class Day0Quiz {
     const stRules = this.tagRules.update();
     const stLog = this.tagLog.update();
 
-    // finish overlays: CLUES
+    // overlay finish: CLUES
     if (this.tagClues.overlayActive && stClues.done) {
       this.tagClues.overlayActive = false;
-      if (this._cluesLastPath === "logToPage") {
-        this.cluesHiddenOnClues = true; // stays hidden while on Clues page
-      } else if (this._cluesLastPath === "pageToLog") {
-        // part of "return to log" via Log tag — count down
-        if (this._returningToLog) this._decToLogAndMaybeSwitch();
-      }
+      if (this._cluesLastPath === "logToPage") this.cluesHiddenOnClues = true;
+      else if (this._cluesLastPath === "pageToLog" && this._returningToLog)
+        this._decToLogAndMaybeSwitch();
       this._cluesLastPath = null;
     }
 
-    // finish overlays: RULES
+    // overlay finish: RULES
     if (this.tagRules.overlayActive && stRules.done) {
       this.tagRules.overlayActive = false;
-      if (this._rulesLastPath === "logToPage") {
-        this.rulesHiddenOnRules = true;
-      } else if (this._rulesLastPath === "pageToLog") {
-        if (this._returningToLog) this._decToLogAndMaybeSwitch();
-      }
+      if (this._rulesLastPath === "logToPage") this.rulesHiddenOnRules = true;
+      else if (this._rulesLastPath === "pageToLog" && this._returningToLog)
+        this._decToLogAndMaybeSwitch();
       this._rulesLastPath = null;
     }
 
-    // finish overlays: LOG (reverse back left)
+    // overlay finish: LOG
     if (this.tagLog.overlayActive && stLog.done) {
       this.tagLog.overlayActive = false;
       if (this._returningToLog) this._decToLogAndMaybeSwitch();
@@ -165,7 +157,6 @@ class Day0Quiz {
     if (this.currentNotebook === this.notebookLog) {
       if (!this.tagClues.overlayActive) this.tagClues.drawClickable();
       if (!this.tagRules.overlayActive) this.tagRules.drawClickable();
-      // log hidden on Log page
     } else if (this.currentNotebook === this.notebookClues) {
       if (!this.tagRules.overlayActive) this.tagRules.drawClickable();
       if (!this.tagClues.overlayActive && !this.cluesHiddenOnClues)
@@ -178,16 +169,17 @@ class Day0Quiz {
       if (!this.tagLog.overlayActive) this.tagLog.drawClickable();
     }
 
-    // 2) animated overlays under the notebook
+    // 2) animated overlays
     if (this.tagClues.overlayActive) this.tagClues.drawUnder();
     if (this.tagRules.overlayActive) this.tagRules.drawUnder();
     if (this.tagLog.overlayActive) this.tagLog.drawUnder();
 
-    // 3) notebook on top
+    // 3) notebook image
     let img = this.notebookLog;
     if (this.currentNotebook === this.notebookClues) img = this.notebookClues;
     else if (this.currentNotebook === this.notebookRules)
       img = this.notebookRules;
+
     image(
       img,
       this.notebookX,
@@ -195,7 +187,6 @@ class Day0Quiz {
       this.NOTEBOOK_W,
       this.NOTEBOOK_H
     );
-
     pop();
   }
 
@@ -205,7 +196,7 @@ class Day0Quiz {
       this.nbT >= 0.999 &&
       !this.nbSlide.active &&
       this.quizState &&
-      Math.abs(this.yOffset - 576) < 0.5
+      Math.abs(this.yOffset - height) < 0.5
     );
   }
 
@@ -217,17 +208,16 @@ class Day0Quiz {
   }
 
   mousePressed() {
-    // --- CLUES tag click (allowed anywhere it's visible)
+    // CLUES
     if (this._canClickClues() && this.tagClues.hit(mouseX, mouseY)) {
       const fromLog = this.currentNotebook === this.notebookLog;
 
-      this.tagClues.startEntrance(); // L→R overlay
+      this.tagClues.startEntrance();
       this.tagClues.overlayActive = true;
       this._cluesLastPath = "logToPage";
 
-      // if coming from RULES, make RULES re-appear to base (no log anim)
       if (this.currentNotebook === this.notebookRules) {
-        this.tagRules.startReverseWithFade(); // R→L to base
+        this.tagRules.startReverseWithFade();
         this.tagRules.overlayActive = true;
         this._rulesLastPath = "pageToBase";
       }
@@ -235,23 +225,20 @@ class Day0Quiz {
       this.gotoCluesPage();
       this.rulesHiddenOnRules = false;
 
-      // Only animate the Log tag entrance when coming FROM LOG
       if (fromLog) this._playLogEntrance();
-
       return;
     }
 
-    // --- RULES tag click
+    // RULES
     if (this._canClickRules() && this.tagRules.hit(mouseX, mouseY)) {
       const fromLog = this.currentNotebook === this.notebookLog;
 
-      this.tagRules.startEntrance(); // L→R overlay
+      this.tagRules.startEntrance();
       this.tagRules.overlayActive = true;
       this._rulesLastPath = "logToPage";
 
-      // if coming from CLUES, make CLUES re-appear to base (no log anim)
       if (this.currentNotebook === this.notebookClues) {
-        this.tagClues.startReverseWithFade(); // R→L to base
+        this.tagClues.startReverseWithFade();
         this.tagClues.overlayActive = true;
         this._cluesLastPath = "pageToBase";
       }
@@ -259,31 +246,26 @@ class Day0Quiz {
       this.gotoRulesPage();
       this.cluesHiddenOnClues = false;
 
-      // Only animate the Log tag entrance when coming FROM LOG
       if (fromLog) this._playLogEntrance();
-
       return;
     }
 
-    // --- LOG tag click (on Clues/Rules): reverse BOTH current page's tag and the Log tag, then switch to Log
+    // LOG (on Clues/Rules)
     if (this._canClickLog() && this.tagLog.hit(mouseX, mouseY)) {
-      // we’re coordinating two reverse animations: log tag + current page tag
       this._returningToLog = true;
       this._pendingToLogCount = 0;
 
-      // 1) reverse the log tag (R→L, fade in)
-      this.tagLog.startReverseWithFade(); // 919 → 819
+      this.tagLog.startReverseWithFade();
       this.tagLog.overlayActive = true;
       this._pendingToLogCount++;
 
-      // 2) reverse the page-specific tag so it re-appears R→L as we return
       if (this.currentNotebook === this.notebookClues) {
-        this.tagClues.startReverseWithFade(); // target → base (R→L)
+        this.tagClues.startReverseWithFade();
         this.tagClues.overlayActive = true;
         this._cluesLastPath = "pageToLog";
         this._pendingToLogCount++;
       } else if (this.currentNotebook === this.notebookRules) {
-        this.tagRules.startReverseWithFade(); // target → base (R→L)
+        this.tagRules.startReverseWithFade();
         this.tagRules.overlayActive = true;
         this._rulesLastPath = "pageToLog";
         this._pendingToLogCount++;
@@ -292,7 +274,6 @@ class Day0Quiz {
     }
   }
 
-  // decrement and switch to log when both reverse animations finish
   _decToLogAndMaybeSwitch() {
     this._pendingToLogCount = Math.max(0, this._pendingToLogCount - 1);
     if (this._returningToLog && this._pendingToLogCount === 0) {
@@ -301,15 +282,13 @@ class Day0Quiz {
     }
   }
 
-  // animate Log tag entrance (only when coming from Log → Clues/Rules)
   _playLogEntrance() {
     this.tagLog.slide.value = 0;
     this.tagLog.fade.value = 255;
-    this.tagLog.startEntrance(); // 819 → 919
+    this.tagLog.startEntrance();
     this.tagLog.overlayActive = true;
   }
 
-  // clickability guards
   _canClickClues() {
     if (this.currentNotebook === this.notebookLog)
       return !this.tagClues.overlayActive;
@@ -343,15 +322,13 @@ class Day0Quiz {
   }
   gotoLogPage() {
     this.currentNotebook = this.notebookLog;
-    // restore both left-side tags for future use
     this.cluesHiddenOnClues = false;
     this.rulesHiddenOnRules = false;
   }
 
   setQuizState(state) {
     this.quizState = state;
-    this.scroll.start(this.yOffset, this.quizState ? 576 : 0);
+    this.scroll.start(this.yOffset, this.quizState ? height : 0);
   }
 }
-
 window.Day0Quiz = Day0Quiz;

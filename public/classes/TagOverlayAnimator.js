@@ -1,48 +1,35 @@
-// public/classes/TagOverlayAnimator.js
 class TagOverlayAnimator {
   constructor({
     label = "clues",
-    // Stationary/clickable location (drawn behind the notebook)
-    baseX = 5,
-    y = 750,
+    baseX = 5, // stationary/clickable x
+    y = 750, // image-space y (notebook strip)
     w = 100,
     h = 50,
     font = null,
-    // Overlay animation path (drawn UNDER the notebook while animating).
-    // Default to sweeping from baseX → targetX (like the left-side tags).
     overlayStartX = null,
     overlayEndX = null,
     slideDur = 300,
     fadeDur = 200,
   } = {}) {
     this.label = label;
-
-    // Stationary placement
     this.baseX = baseX;
     this.y = y;
     this.w = w;
     this.h = h;
     this.font = font;
 
-    // Overlay path
     this.overlayStartX = overlayStartX ?? baseX;
-    this.overlayEndX = overlayEndX ?? baseX + 100; // sensible default
+    this.overlayEndX = overlayEndX ?? baseX + 100;
 
-    // Tweens
     this.slide = new Tween({ from: 0, to: 1, dur: slideDur });
-    this.fade = new Tween({ from: 255, to: 255, dur: fadeDur }); // used for reverse/fade-in
+    this.fade = new Tween({ from: 255, to: 255, dur: fadeDur });
 
-    // State for overlay
     this.overlayActive = false;
-    // +1: "entrance" along overlayStartX → overlayEndX (no fade change)
-    // -1: "reverse"  along overlayEndX   → overlayStartX (fade in)
     this.overlayDir = +1;
 
-    // Hit rect for stationary tag
     this.screenRect = { x: -9999, y: -9999, w: 0, h: 0 };
   }
 
-  // Play entrance sweep (overlayStartX -> overlayEndX), keep current alpha
   startEntrance() {
     this.overlayActive = true;
     this.overlayDir = +1;
@@ -50,7 +37,6 @@ class TagOverlayAnimator {
     this.fade.start(255, 255, 1);
   }
 
-  // Play reverse sweep (overlayEndX -> overlayStartX), fade in as it moves
   startReverseWithFade() {
     this.overlayActive = true;
     this.overlayDir = -1;
@@ -65,10 +51,10 @@ class TagOverlayAnimator {
     return { tSlide, alpha, done };
   }
 
-  // Stationary, clickable tag rendered behind the notebook
+  // Stationary tag behind the notebook
   drawClickable() {
     const xNow = this.baseX;
-    const baseY = this.y - 576;
+    const baseY = this.y - height; // map image-space to screen
 
     this.screenRect = { x: xNow, y: baseY, w: this.w, h: this.h };
 
@@ -87,10 +73,10 @@ class TagOverlayAnimator {
     pop();
   }
 
-  // Animated overlay under the notebook
+  // Under-notebook animated overlay
   drawUnder() {
     const t = this.slide.value;
-    const baseY = this.y - 576;
+    const baseY = this.y - height;
 
     const x0 = this.overlayDir === -1 ? this.overlayEndX : this.overlayStartX;
     const x1 = this.overlayDir === -1 ? this.overlayStartX : this.overlayEndX;
@@ -116,5 +102,4 @@ class TagOverlayAnimator {
     return mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
   }
 }
-
 window.TagOverlayAnimator = TagOverlayAnimator;

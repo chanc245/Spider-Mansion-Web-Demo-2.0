@@ -33,6 +33,12 @@ class Day0QuizLog {
     this._justSubmitted = false;
     this.waitingForAI = false;
 
+    // Outcome + transitions
+    this._solved = false;
+    this.onSolved = null; // () => void
+    this.onExhausted = null; // () => void
+    this._ending = false; // linger for 3s after final reply
+
     // Paging
     this.page = 0;
     this.pageStarts = [0];
@@ -122,6 +128,7 @@ class Day0QuizLog {
           idx
         ] = `${this.eva.icon}${this.eva.prefix}: ${reply}`;
         this.notebookContent.push("***");
+        this._afterAIReply(reply);
       } catch (err) {
         this.notebookContent[idx] = `${this.eva.icon}${
           this.eva.prefix
@@ -189,19 +196,46 @@ class Day0QuizLog {
   }
 
   mousePressed() {
+    // Only react when visible
+    if (!this.active || this.alpha <= 1) return;
+
+    // Always allow paging (even during ending / AI thinking)
     if (this._hasPrev() && this._hit(this.leftBtn)) {
-      this.page--;
+      this.page = max(0, this.page - 1);
       this._snapInput();
       return;
     }
     if (this._hasNext() && this._hit(this.rightBtn)) {
-      this.page++;
+      this.page = min(this.pageStarts.length - 1, this.page + 1);
       this._snapInput();
       return;
     }
   }
 
   // ---------- internal ----------
+
+  _afterAIReply(reply) {
+    const text = String(reply || "")
+      .trim()
+      .toLowerCase();
+
+    // success if the AI begins with "that's correct!"
+    if (text.startsWith("that's correct!")) {
+      this._solved = true;
+      this._ending = true;
+      this.input.hide();
+      if (typeof this.onSolved === "function") this.onSolved();
+      return;
+    }
+
+    // exhaustion if we've just hit the limit and haven't solved yet
+    if (this.questionCount >= this.inputLimit && !this._solved) {
+      this._ending = true;
+      this.input.attribute("placeholder", "Q limit reached (20).");
+      this.input.hide();
+      if (typeof this.onExhausted === "function") this.onExhausted();
+    }
+  }
 
   _updateAndDraw() {
     if (this.userFont) textFont(this.userFont);
@@ -215,28 +249,56 @@ class Day0QuizLog {
     }
 
     const capPerPage = this._maxLinesPerBox * 2;
+
+    // Ensure current pageStart is defined
     if (!Number.isInteger(this.pageStarts[this.page])) {
-      this.pageStarts[this.page] = this._wrapped.length;
+      const lastKnown = this.pageStarts[this.page - 1];
+      this.pageStarts[this.page] = Number.isInteger(lastKnown)
+        ? min(this._wrapped.length, lastKnown + capPerPage)
+        : 0;
     }
 
-    const curStart = this.pageStarts[this.page];
-    const linesFromCur = this._wrapped.length - curStart;
+    let thisStart = this.pageStarts[this.page];
+    let nextStart =
+      this.page + 1 < this.pageStarts.length
+        ? this.pageStarts[this.page + 1]
+        : this._wrapped.length;
+    let curPageLines = this._wrapped.slice(thisStart, nextStart);
 
-    // auto paginate exactly at overflow point
+    // auto paginate exactly at overflow point for the LAST page
+    const linesFromCur = this._wrapped.length - thisStart;
     if (this.page === this.pageStarts.length - 1 && linesFromCur > capPerPage) {
-      const overflowStart = curStart + capPerPage;
+      const overflowStart = thisStart + capPerPage;
       if (this.pageStarts[this.pageStarts.length - 1] !== overflowStart) {
         this.pageStarts.push(overflowStart);
       }
       this.page = this.pageStarts.length - 1;
+      thisStart = this.pageStarts[this.page];
+      nextStart = this._wrapped.length;
+      curPageLines = this._wrapped.slice(thisStart, nextStart);
     }
 
-    const thisStart = this.pageStarts[this.page];
-    const nextStart =
-      this.page + 1 < this.pageStarts.length
-        ? this.pageStarts[this.page + 1]
-        : this._wrapped.length;
-    const curPageLines = this._wrapped.slice(thisStart, nextStart);
+    // === Reserve space for input ===
+    // If we're on the last page and eligible to show the input,
+    // but there's no spare row left for it, create a new blank page
+    // and place the input there.
+    if (
+      this.page === this.pageStarts.length - 1 &&
+      this._canShowInputThisPage()
+    ) {
+      const used = curPageLines.length;
+      const needsNext = used >= capPerPage - 1; // reserve 1 row for input
+      if (needsNext) {
+        const reserveStart = thisStart + capPerPage;
+        if (this.pageStarts[this.pageStarts.length - 1] !== reserveStart) {
+          this.pageStarts.push(reserveStart);
+        }
+        this.page = this.pageStarts.length - 1;
+        thisStart = this.pageStarts[this.page];
+        nextStart = this._wrapped.length;
+        curPageLines = this._wrapped.slice(thisStart, nextStart);
+      }
+    }
 
     // draw columns
     this._drawColumns(curPageLines, this.alpha);
@@ -271,7 +333,8 @@ class Day0QuizLog {
       this.page === this.pageStarts.length - 1 &&
       this.questionCount < this.inputLimit &&
       !this._justSubmitted &&
-      !this.waitingForAI
+      !this.waitingForAI &&
+      !this._ending
     );
   }
 

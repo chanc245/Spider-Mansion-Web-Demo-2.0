@@ -41,6 +41,9 @@ class Day0Quiz {
     // return-to-log coordination
     this._returningToLog = false;
     this._pendingToLogCount = 0;
+
+    this.onScrollEnd = null; // NEW: called when scroll tween finishes
+    this._lastScrollActive = false; // internal edge detector
   }
 
   preload() {
@@ -105,6 +108,18 @@ class Day0Quiz {
 
     // scroll & attic
     this.yOffset = this.scroll.update();
+    // NEW: fire onScrollEnd when tween stops
+    if (this._lastScrollActive && !this.scroll.active) {
+      // report where we ended (true = at bottom; false = at top)
+      const atBottom = Math.abs(this.yOffset - height) < 0.5;
+      const visible = atBottom && this.quizState; // notebook meant to be shown
+      // Invoke if provided (pass current quizState and yOffset)
+      try {
+        this.onScrollEnd?.(this.quizState, this.yOffset, visible);
+      } catch {}
+    }
+    this._lastScrollActive = this.scroll.active;
+
     image(this.bg, 0, -this.yOffset, width, height * 2);
 
     // notebook slide at bottom

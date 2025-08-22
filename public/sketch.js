@@ -2,6 +2,9 @@
 let audioMgr;
 let quiz, logView, dialog;
 
+let showQuizAfterDialog = true;
+const QUIZ_AUTO_RETURN_DELAY_MS = 3000;
+
 // Track notebook/log overlay activation like before
 let _prevNotebookReady = false;
 let _prevNotebookImage = null;
@@ -48,29 +51,71 @@ function preload() {
 function setup() {
   createCanvas(1024, 576);
 
-  // normal setup
   quiz.setup();
   logView.setup();
 
-  // start with the quiz "not shown" — we'll reveal after VN
-  // (we will also simply not render the quiz while VN is active)
   quiz.setQuizState(false);
 
-  // load the VN script from your dialog.js (ensure it’s included before this)
-  // e.g., <script src="dialog.js"></script> defines global vnScript
   if (typeof vnScript === "undefined") {
     console.warn("vnScript is not defined. Did you include dialog.js?");
   } else {
     dialog.setScript(vnScript);
   }
 
-  // when VN finishes, slide the quiz notebook into view
   dialog.onFinish = () => {
-    // reveal quiz
-    quiz.setQuizState(true);
+    // After intro VN, reveal quiz
+    if (showQuizAfterDialog) {
+      quiz.setQuizState(true);
+    }
   };
 
-  // start VN
+  // GOOD path
+  logView.onSolved = () => {
+    setTimeout(() => {
+      showQuizAfterDialog = false;
+
+      // Hide the log overlay immediately (optional)
+      logView.setActive(false, "page");
+
+      // Start scroll-up animation; when it finishes, start the post-quiz VN
+      const startGoodVN = () => {
+        // clear handler so it doesn't fire again later
+        quiz.onScrollEnd = null;
+        dialog.setScript(vnScript_postQuiz_Good);
+        dialog.start();
+      };
+
+      // Set a one-shot listener that waits until the scroll completes at the top
+      quiz.onScrollEnd = (state /* false */, yOffset /* ~0 */, visible) => {
+        // We only care about the transition to top (quizState=false)
+        if (state === false) startGoodVN();
+      };
+
+      // Trigger the scroll (true -> false)
+      quiz.setQuizState(false);
+    }, QUIZ_AUTO_RETURN_DELAY_MS);
+  };
+
+  // BAD path
+  logView.onExhausted = () => {
+    setTimeout(() => {
+      showQuizAfterDialog = false;
+      logView.setActive(false, "page");
+
+      const startBadVN = () => {
+        quiz.onScrollEnd = null;
+        dialog.setScript(vnScript_postQuiz_Bad);
+        dialog.start();
+      };
+
+      quiz.onScrollEnd = (state, yOffset, visible) => {
+        if (state === false) startBadVN();
+      };
+
+      quiz.setQuizState(false);
+    }, QUIZ_AUTO_RETURN_DELAY_MS);
+  };
+
   dialog.start();
 
   _prevNotebookReady = quiz.isNotebookShown();

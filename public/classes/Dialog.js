@@ -311,8 +311,11 @@ class Dialog {
                 : null,
           };
     if (!this.audio) return;
-    if (parsed.path === "ALL") this.audio.stopAll(parsed.fadeMs);
-    else this.audio.stop(parsed.path, parsed.fadeMs);
+    if (!this.audio) return;
+
+    const fadeOpt = { fadeMs: parsed.fadeMs || 0 };
+    if (parsed.path === "ALL") this.audio.stopAll(fadeOpt);
+    else this.audio.stop(parsed.path, fadeOpt);
   }
 
   _isHoldingBg() {

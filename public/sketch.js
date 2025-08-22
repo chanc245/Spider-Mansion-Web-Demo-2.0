@@ -14,6 +14,8 @@ function preload() {
   audioMgr.load("assets/audio/bg_ara.mp3", { loop: true, volume: 1.0 });
   audioMgr.load("assets/audio/dia_step.mp3");
 
+  audioMgr.load("assets/audio/ui_clickDia.mp3", { volume: 1.0 });
+
   // --- core scenes ---
   quiz = new Day0Quiz({ nbInDur: 700, nbOutDur: 450 });
   logView = new Day0QuizLog();
@@ -26,13 +28,15 @@ function preload() {
     w: 750,
     h: 141,
     boxImage: "assets/ui_diaBox.png",
-    // timing knobs (use your tuned defaults)
     fadeInMs: 250,
     fadeOutMs: 200,
     cgFadeMs: 250,
     bgFadeMs: 300,
-    // hold the last VN background briefly to avoid any flashing
-    holdBgAfterFinishMs: 150, // can tweak up/down
+    holdBgAfterFinishMs: 150,
+
+    // pass the SFX path (optional tuning)
+    clickSfxPath: "assets/audio/ui_clickDia.mp3",
+    clickSfxVolume: 0.5,
   });
 
   // preload assets for each class

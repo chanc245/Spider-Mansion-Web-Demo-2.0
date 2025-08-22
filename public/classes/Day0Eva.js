@@ -1,22 +1,24 @@
+// classes/Day0Eva.js
 class Day0Eva {
   constructor(setup, solution, opts = {}) {
     this.setup = setup;
     this.solution = solution;
+    /** @type {{q:string,a:string|null}[]} */
     this.history = [];
     this.prefix = opts.prefix ?? "Eva";
     this.icon = opts.icon ?? "";
+
+    // Cleaned tone (no emoji, eerie-playful, concise)
     this.tone =
       opts.tone ??
-      `You are Eva, a cheerful, playful, slightly pushy 12-year-old girl.
-Speak casually and energetically, with warm excitement and curiosity.
-Keep your responses shYou are Eva, a cheerful yet slightly unsettling 12-year-old girl.
-Your voice is playful and casual, but there's always a faint, eerie undertone.
-You sound like you're enjoying a little secret the player doesn't know.
-Speak warmly but leave hints of something mysterious beneath the surface.
-Sometimes, end nudges with a soft teasing chill: "~" or "..." for tension.
-Keep responses short, lively, and a little unpredictable.ort, lively, and natural — no dragging words.
-Be playful but not over-the-top, and sound slightly annoyed if the player goes off-track.
-Always make nudges feel fresh and avoid repeating the same hint twice in a row.`;
+      `
+You are Eva, a cheerful yet slightly unsettling 12-year-old girl.
+Your voice is playful and casual, with a faint eerie undertone—
+as if you know a secret the player doesn’t.
+Speak warmly but keep it short, lively, and a little unpredictable.
+If the player goes off track, sound gently annoyed—never mean.
+Never use emojis or decorative symbols.
+`.trim();
   }
 
   _prompt(userInput) {
@@ -25,7 +27,7 @@ Always make nudges feel fresh and avoid repeating the same hint twice in a row.`
 
     const historyStr = this.history.length
       ? this.history
-          .map((h, i) => `${i + 1}. Q: ${h.q}\n   A: ${h.a}`)
+          .map((h, i) => `${i + 1}. Q: ${h.q}\n   A: ${h.a ?? "(pending)"}`)
           .join("\n")
       : "(none yet)";
 
@@ -97,18 +99,26 @@ ${userInput}
   }
 
   async ask(userInput) {
-    this.history.push(userInput);
+    // Track Q as an object, fill A later
+    const idx = this.history.push({ q: userInput, a: null }) - 1;
+
     const res = await fetch("/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ input: this._prompt(userInput) }),
     });
+
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
-      throw new Error(`Submit failed: ${res.status} ${txt}`);
+      const errMsg = `Submit failed: ${res.status} ${txt}`;
+      this.history[idx].a = `(error) ${errMsg}`;
+      throw new Error(errMsg);
     }
+
     const json = await res.json();
-    return (json.ai ?? "(no ai field)").toString();
+    const reply = (json.ai ?? "(no ai field)").toString();
+    this.history[idx].a = reply;
+    return reply;
   }
 }
 window.Day0Eva = Day0Eva;

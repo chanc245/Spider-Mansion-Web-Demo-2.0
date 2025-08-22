@@ -69,6 +69,10 @@ class Dialog {
 
     // Assets
     this.boxImg = null;
+
+    // SFX
+    this.clickSfxPath = opts.clickSfxPath ?? "assets/audio/ui_clickDia.mp3";
+    this.clickSfxVolume = opts.clickSfxVolume ?? 1.0;
   }
 
   preload() {
@@ -202,11 +206,20 @@ class Dialog {
   next() {
     if (!this._running) return;
 
-    // finish typing first
+    // finish typing first (user click reveals remainder)
     if (this.typer.typing) {
+      // play click
+      if (this.audio && this.clickSfxPath) {
+        this.audio.play(this.clickSfxPath, { volume: this.clickSfxVolume });
+      }
       this.typer.revealAll();
       this.arrow.reset();
       return;
+    }
+
+    // user click to advance to the next line → play click
+    if (this.audio && this.clickSfxPath) {
+      this.audio.play(this.clickSfxPath, { volume: this.clickSfxVolume });
     }
 
     // advance

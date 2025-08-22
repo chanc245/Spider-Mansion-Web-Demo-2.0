@@ -1,31 +1,10 @@
 // public/classes/AudioManager.js
 class AudioManager {
   constructor({ masterVolume = 1.0 } = {}) {
-    /** @type {Map<string, HTMLAudioElement>} */
-    this._audios = new Map();
-    /** @type {Map<string, Function>} */ // path -> cancel fade func
-    this._fades = new Map();
+    this._audios = new Map(); // path -> HTMLAudioElement
+    this._fades = new Map(); // path -> cancel fn
+    this._baseVolumes = new Map(); // path -> base 0..1 (pre-master)
     this.masterVolume = masterVolume;
-  }
-
-  /** Ensure an audio node exists for this path. */
-  _ensure(path, { loop = false, volume = 1.0 } = {}) {
-    let a = this._audios.get(path);
-    if (!a) {
-      try {
-        a = new Audio(path);
-        a.loop = !!loop;
-        a.preload = "auto";
-        a.volume = this._applyMaster(volume);
-        this._audios.set(path, a);
-      } catch {
-        return null;
-      }
-    } else {
-      a.loop = !!loop;
-      a.volume = this._applyMaster(volume);
-    }
-    return a;
   }
 
   _applyMaster(v) {
@@ -34,31 +13,53 @@ class AudioManager {
     return vol * mv;
   }
 
+  _ensure(path, { loop = false, volume = 1.0 } = {}) {
+    let a = this._audios.get(path);
+    const base = Math.max(0, Math.min(1, volume));
+    if (!a) {
+      try {
+        a = new Audio(path);
+        a.loop = !!loop;
+        a.preload = "auto";
+        this._audios.set(path, a);
+      } catch {
+        return null;
+      }
+    } else {
+      a.loop = !!loop;
+    }
+    // always update base + actual
+    this._baseVolumes.set(path, base);
+    try {
+      a.volume = this._applyMaster(base);
+    } catch {}
+    return a;
+  }
+
   setMasterVolume(v) {
     this.masterVolume = Math.max(0, Math.min(1, v));
-    // Re-apply to all existing nodes (maintains their relative volumes)
+    // Re-apply preserving each audio's base volume
     for (const [path, a] of this._audios.entries()) {
+      const base = this._baseVolumes.get(path) ?? 1;
       try {
-        a.volume = this._applyMaster(1);
+        a.volume = this._applyMaster(base);
       } catch {}
     }
   }
 
-  /** Optional preloader. */
   load(path, { loop = false, volume = 1.0 } = {}) {
     return this._ensure(path, { loop, volume });
   }
 
-  /** Play (creates the audio element if needed). */
   play(path, { loop = false, volume = 1.0, from = 0 } = {}) {
     const a = this._ensure(path, { loop, volume });
     if (!a) return;
-    // cancel any running fade for this path
     this._cancelFade(path);
     try {
       if (!Number.isNaN(from)) a.currentTime = Math.max(0, from);
-      // make sure volume is up (if it had faded previously)
-      a.volume = this._applyMaster(volume);
+      const base = Math.max(0, Math.min(1, volume));
+      this._baseVolumes.set(path, base);
+      a.volume = this._applyMaster(base);
       a.play().catch(() => {});
     } catch {}
   }
@@ -89,8 +90,10 @@ class AudioManager {
     const a = this._audios.get(path);
     if (!a) return;
     this._cancelFade(path);
+    const base = Math.max(0, Math.min(1, volume));
+    this._baseVolumes.set(path, base);
     try {
-      a.volume = this._applyMaster(volume);
+      a.volume = this._applyMaster(base);
     } catch {}
   }
 

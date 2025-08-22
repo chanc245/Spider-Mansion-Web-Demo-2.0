@@ -241,4 +241,9 @@ const vnScript = [
     bg: "assets/bg/bg_pr_3f_Attic_cg.png",
     text: "I built a house, but the guests didn’t realize it was there and accidentally entered. Afterward, the guests, who were trapped in the house, became my dinner. Who am I?",
   },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "That’s the question! You get 20 questions to ask me!",
+  },
 ];

@@ -207,10 +207,10 @@ class Day0Quiz {
   }
 
   keyPressed() {
-    if (key === "q" || key === "Q") this.setQuizState(false);
-    else if (key === "w" || key === "W") this.setQuizState(true);
-    else if (key === "z" || key === "Z") this.gotoCluesPage();
-    else if (key === "x" || key === "X") this.gotoLogPage();
+    // if (key === "q" || key === "Q") this.setQuizState(false);
+    // else if (key === "w" || key === "W") this.setQuizState(true);
+    // else if (key === "z" || key === "Z") this.gotoCluesPage();
+    // else if (key === "x" || key === "X") this.gotoLogPage();
   }
 
   mousePressed() {

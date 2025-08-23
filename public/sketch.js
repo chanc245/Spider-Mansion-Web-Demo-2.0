@@ -5,18 +5,25 @@ let quiz, logView, dialog;
 let showQuizAfterDialog = true;
 const QUIZ_AUTO_RETURN_DELAY_MS = 3000;
 
-// Track notebook/log overlay activation like before
+// --- Title/End screens ---
+let imgTitle, imgEnd;
+let appState = "TITLE"; // "TITLE" | "VN" | "QUIZ" | "END"
+
+// Track notebook/log overlay activation
 let _prevNotebookReady = false;
 let _prevNotebookImage = null;
 
 function preload() {
-  // --- audio manager (new) ---
+  // --- title/end images ---
+  imgTitle = loadImage("assets/cg_titlePage.png");
+  imgEnd = loadImage("assets/cg_endPage.png");
+
+  // --- audio manager ---
   audioMgr = new AudioManager({ masterVolume: 1 });
 
   // (optional) warm up frequently used SFX/BGM so first play is snappy
   audioMgr.load("assets/audio/bg_ara.mp3", { loop: true, volume: 0.6 });
   audioMgr.load("assets/audio/dia_step.mp3");
-
   audioMgr.load("assets/audio/ui_clickDia.mp3", { volume: 1.0 });
 
   // --- core scenes ---
@@ -54,6 +61,7 @@ function setup() {
   quiz.setup();
   logView.setup();
 
+  // Start with quiz hidden (we begin on Title, then VN)
   quiz.setQuizState(false);
 
   if (typeof vnScript === "undefined") {
@@ -62,10 +70,11 @@ function setup() {
     dialog.setScript(vnScript);
   }
 
+  // When the INTRO VN finishes, reveal the quiz and enter QUIZ state
   dialog.onFinish = () => {
-    // After intro VN, reveal quiz
     if (showQuizAfterDialog) {
       quiz.setQuizState(true);
+      appState = "QUIZ";
     }
   };
 
@@ -82,6 +91,13 @@ function setup() {
         // clear handler so it doesn't fire again later
         quiz.onScrollEnd = null;
         dialog.setScript(vnScript_postQuiz_Good);
+
+        // For post-quiz good path, end on END screen
+        dialog.onFinish = () => {
+          appState = "END";
+        };
+
+        appState = "VN";
         dialog.start();
       };
 
@@ -105,6 +121,13 @@ function setup() {
       const startBadVN = () => {
         quiz.onScrollEnd = null;
         dialog.setScript(vnScript_postQuiz_Bad);
+
+        // For post-quiz bad path, end on END screen
+        dialog.onFinish = () => {
+          appState = "END";
+        };
+
+        appState = "VN";
         dialog.start();
       };
 
@@ -116,13 +139,27 @@ function setup() {
     }, QUIZ_AUTO_RETURN_DELAY_MS);
   };
 
-  dialog.start();
+  // NOTE: We do NOT auto-start the VN here.
+  // We begin on the TITLE screen. Click → start VN in mousePressed().
 
   _prevNotebookReady = quiz.isNotebookShown();
   _prevNotebookImage = quiz.currentNotebook;
 }
 
 function draw() {
+  // --- High-level state screens first ---
+  if (appState === "TITLE") {
+    background(0);
+    if (imgTitle) image(imgTitle, 0, 0, 1024, 576);
+    return;
+  }
+
+  if (appState === "END") {
+    background(0);
+    if (imgEnd) image(imgEnd, 0, 0, 1024, 576);
+    return;
+  }
+
   // --- VN layer (updates and renders even if it’s in its end hold-BG window) ---
   dialog.update();
   dialog.render();
@@ -131,7 +168,7 @@ function draw() {
   // Hide the quiz entirely while VN is actively running or fading its UI,
   // but once VN has finished (even if it’s still holding the last BG),
   // go ahead and render quiz. This prevents a hard cut and avoids a flash.
-  if (!dialog.isActive()) {
+  if (appState === "QUIZ" && !dialog.isActive()) {
     quiz.update();
 
     // notebook/log overlay logic (unchanged)
@@ -159,6 +196,18 @@ function draw() {
 }
 
 function mousePressed() {
+  // Title → start INTRO VN
+  if (appState === "TITLE") {
+    appState = "VN";
+    dialog.start();
+    return;
+  }
+
+  // End screen → (no-op). If you want restart behavior, add it here.
+  if (appState === "END") {
+    return;
+  }
+
   // While VN is running, clicks advance the dialog only
   if (dialog.isActive()) {
     dialog.mousePressed();
@@ -166,8 +215,10 @@ function mousePressed() {
   }
 
   // VN is done → normal quiz inputs
-  quiz.mousePressed();
-  logView.mousePressed();
+  if (appState === "QUIZ") {
+    quiz.mousePressed();
+    logView.mousePressed();
+  }
 }
 
 function keyPressed() {
@@ -177,6 +228,8 @@ function keyPressed() {
     return;
   }
 
-  // normal quiz hotkeys
-  quiz.keyPressed();
+  // normal quiz hotkeys (optional)
+  if (appState === "QUIZ") {
+    quiz.keyPressed();
+  }
 }

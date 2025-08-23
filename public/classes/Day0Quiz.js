@@ -301,7 +301,7 @@ class Day0Quiz {
     this.tagLog.slide.value = 0;
     this.tagLog.startEntrance(); // entrance = start -> end
     this.tagLog.overlayActive = true;
-    this.tagLog.fade.value = 255;
+    // this.tagLog.fade.value = 255;
     this.tagLog.startEntrance();
     this.tagLog.overlayActive = true;
   }

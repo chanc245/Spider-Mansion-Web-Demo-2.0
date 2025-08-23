@@ -112,6 +112,7 @@ class Dialog {
     this.cg.update();
     this.typer.update();
     this.arrow.setEnabled(!this.typer.typing);
+    this.arrow.update();
 
     if (this._fadingOut && !this._uiFade.active && this.alpha <= 1) {
       this._fadingOut = false;

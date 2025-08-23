@@ -177,26 +177,32 @@ class Typewriter {
 window.Typewriter = Typewriter;
 
 class Blinker {
-  constructor({ periodMs = 900, min = 64, max = 255 } = {}) {
-    this.period = periodMs;
-    this.min = min;
-    this.max = max;
-    this._start = millis();
-    this.enabled = false;
+  constructor({ periodMs = 900 } = {}) {
+    this.periodMs = Math.max(1, periodMs);
+    this.enabled = true;
+    this.alpha = 0; // 0..255
+    this._t0 = millis();
+  }
+  setEnabled(on) {
+    if (this.enabled === on) return;
+    this.enabled = on;
+    if (!on) this.alpha = 0;
+    else this._t0 = millis(); // restart phase when re-enabled
   }
   reset() {
-    this._start = millis();
+    this._t0 = millis();
   }
-  setEnabled(v) {
-    this.enabled = !!v;
-    if (v) this.reset();
-  }
-  get alpha() {
-    if (!this.enabled) return 0;
-    const t = Math.max(0, millis() - this._start);
-    const phase = (t % this.period) / this.period;
-    const s = 0.5 * (1 + Math.sin(phase * Math.PI * 2 - Math.PI / 2));
-    return Math.round(this.min + s * (this.max - this.min));
+  update() {
+    if (!this.enabled) {
+      this.alpha = 0;
+      return;
+    }
+    const t = (millis() - this._t0) % this.periodMs;
+    const phase = t / this.periodMs; // 0..1
+    // Smooth cosine blink (ease-in/out both sides)
+    // alpha = 0..255..0 over one period
+    const v = 0.5 - 0.5 * Math.cos(2 * Math.PI * phase);
+    this.alpha = Math.floor(v * 255);
   }
 }
 window.Blinker = Blinker;

@@ -13,32 +13,41 @@ class AudioManager {
     return vol * mv;
   }
 
-  _ensure(path, { loop = false, volume = 1.0 } = {}) {
+  /** Create if needed; only override props explicitly provided. */
+  _ensure(path, opts = {}) {
+    const hasLoop = Object.prototype.hasOwnProperty.call(opts, "loop");
+    const hasVolume = Object.prototype.hasOwnProperty.call(opts, "volume");
+
     let a = this._audios.get(path);
-    const base = Math.max(0, Math.min(1, volume));
     if (!a) {
       try {
         a = new Audio(path);
-        a.loop = !!loop;
         a.preload = "auto";
+        a.loop = !!(hasLoop ? opts.loop : false);
+        const base = hasVolume
+          ? Math.max(0, Math.min(1, opts.volume))
+          : this._baseVolumes.get(path) ?? 1;
+        this._baseVolumes.set(path, base);
+        a.volume = this._applyMaster(base);
         this._audios.set(path, a);
       } catch {
         return null;
       }
     } else {
-      a.loop = !!loop;
+      if (hasLoop) a.loop = !!opts.loop;
+      if (hasVolume) {
+        const base = Math.max(0, Math.min(1, opts.volume));
+        this._baseVolumes.set(path, base);
+        try {
+          a.volume = this._applyMaster(base);
+        } catch {}
+      }
     }
-    // always update base + actual
-    this._baseVolumes.set(path, base);
-    try {
-      a.volume = this._applyMaster(base);
-    } catch {}
     return a;
   }
 
   setMasterVolume(v) {
     this.masterVolume = Math.max(0, Math.min(1, v));
-    // Re-apply preserving each audio's base volume
     for (const [path, a] of this._audios.entries()) {
       const base = this._baseVolumes.get(path) ?? 1;
       try {
@@ -47,24 +56,25 @@ class AudioManager {
     }
   }
 
-  load(path, { loop = false, volume = 1.0 } = {}) {
-    return this._ensure(path, { loop, volume });
+  /** Optional preloader; respects provided opts only. */
+  load(path, opts = {}) {
+    return this._ensure(path, opts);
   }
 
-  play(path, { loop = false, volume = 1.0, from = 0 } = {}) {
-    const a = this._ensure(path, { loop, volume });
+  /** Play; preserves existing loop/volume unless explicitly passed. */
+  play(path, opts = {}) {
+    const a = this._ensure(path, opts);
     if (!a) return;
     this._cancelFade(path);
     try {
-      if (!Number.isNaN(from)) a.currentTime = Math.max(0, from);
-      const base = Math.max(0, Math.min(1, volume));
-      this._baseVolumes.set(path, base);
-      a.volume = this._applyMaster(base);
+      if (opts.from != null && !Number.isNaN(opts.from)) {
+        a.currentTime = Math.max(0, opts.from);
+      }
+      // volume handled in _ensure when provided; otherwise preserved
       a.play().catch(() => {});
     } catch {}
   }
 
-  /** Stop a single sound; optional fade in ms. */
   stop(path, { fadeMs = 0 } = {}) {
     const a = this._audios.get(path);
     if (!a) return;
@@ -79,11 +89,8 @@ class AudioManager {
     this._fadeOut(path, fadeMs);
   }
 
-  /** Stop every loaded/played sound; optional fade in ms. */
   stopAll({ fadeMs = 0 } = {}) {
-    for (const path of this._audios.keys()) {
-      this.stop(path, { fadeMs });
-    }
+    for (const path of this._audios.keys()) this.stop(path, { fadeMs });
   }
 
   setVolume(path, volume) {

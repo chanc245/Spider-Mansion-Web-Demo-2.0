@@ -24,7 +24,7 @@ function preload() {
   // (optional) warm up frequently used SFX/BGM so first play is snappy
   audioMgr.load("assets/audio/bg_ara.mp3", { loop: true, volume: 0.3 });
   audioMgr.load("assets/audio/dia_step.mp3");
-  audioMgr.load("assets/audio/ui_clickDia.mp3", { volume: 1.0 });
+  audioMgr.load("assets/audio/ui_clickDia.mp3", { volume: 0.5 });
 
   // --- core scenes ---
   quiz = new Day0Quiz({ nbInDur: 700, nbOutDur: 450 });

@@ -122,7 +122,7 @@ const vnScript = [
     charName: "Eva",
     charCG: "assets/charImg/char_ara_smiling.png",
     bg: "assets/bg/bg_pr_3f_Attic.png",
-    text: "Let’s.... play a game :)",
+    text: "Let’s.... play a game.",
     soundEffect: "assets/audio/bg_ara.mp3",
   },
   {

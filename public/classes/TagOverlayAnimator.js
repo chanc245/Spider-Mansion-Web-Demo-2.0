@@ -6,15 +6,11 @@ class TagOverlayAnimator {
     w = 100,
     h = 50,
     font = null,
-
-    // NEW: Animation direction helper
     aniDirection = "LTR", // "LTR" or "RTL"
-
-    // Optional explicit overrides (if omitted we auto-compute from aniDirection)
     overlayStartX = null,
     overlayEndX = null,
-
     slideDur = 300,
+    bgImg = null, // <-- NEW: bookmark image
   } = {}) {
     this.label = label;
     this.baseX = baseX;
@@ -23,9 +19,10 @@ class TagOverlayAnimator {
     this.h = h;
     this.font = font;
 
+    // NEW: background image for bookmark
+    this.bgImg = bgImg;
+
     // Auto-compute start/end if not provided, based on direction
-    // LTR:  start = baseX, end = baseX + w
-    // RTL:  start = baseX, end = baseX - w
     this.aniDirection = aniDirection;
     const autoStart = this.aniDirection === "RTL" ? baseX - w : baseX;
     const autoEnd = this.aniDirection === "RTL" ? baseX : baseX + w;
@@ -36,29 +33,27 @@ class TagOverlayAnimator {
     this.slide = new Tween({ from: 0, to: 1, dur: slideDur });
 
     this.overlayActive = false;
-    // +1 = forward (start->end), -1 = reverse (end->start)
-    this.overlayDir = +1;
+    this.overlayDir = +1; // +1 forward, -1 reverse
 
     this.screenRect = { x: -9999, y: -9999, w: 0, h: 0 };
   }
 
-  // Forward (start -> end)
+  // Forward animation
   startEntrance() {
     this.overlayActive = true;
     this.overlayDir = +1;
     this.slide.start(0, 1);
   }
 
-  // Reverse (end -> start)
+  // Reverse animation
   startReverse() {
     this.overlayActive = true;
     this.overlayDir = -1;
     this.slide.start(0, 1);
   }
 
-  // Kept for backward compatibility with your existing calls
   startReverseWithFade() {
-    // same as startReverse, but no fading anymore
+    // Backward compatibility: same as startReverse (no fading)
     this.startReverse();
   }
 
@@ -68,7 +63,7 @@ class TagOverlayAnimator {
     return { tSlide, done };
   }
 
-  // Stationary tag behind the notebook (click target)
+  // Draw stationary tag behind notebook
   drawClickable() {
     const xNow = this.baseX;
     const baseY = this.y - height; // map image-space to screen
@@ -77,10 +72,18 @@ class TagOverlayAnimator {
 
     push();
     noStroke();
-    fill(0, 0, 0, 120);
-    rect(xNow + 3, baseY + 3, this.w, this.h);
-    fill(255);
-    rect(xNow, baseY, this.w, this.h);
+
+    if (this.bgImg) {
+      // Use provided PNG as tag background
+      image(this.bgImg, xNow, baseY, this.w, this.h);
+    } else {
+      // Fallback: white rectangle style
+      fill(0, 0, 0, 120);
+      rect(xNow + 3, baseY + 3, this.w, this.h);
+      fill(255);
+      rect(xNow, baseY, this.w, this.h);
+    }
+
     if (this.font) textFont(this.font);
     textSize(30);
     noStroke();
@@ -90,7 +93,7 @@ class TagOverlayAnimator {
     pop();
   }
 
-  // Under-notebook animated overlay (now always fully opaque; no fading)
+  // Draw animated overlay under notebook
   drawUnder() {
     const t = this.slide.value;
     const baseY = this.y - height;
@@ -101,12 +104,18 @@ class TagOverlayAnimator {
 
     push();
     noStroke();
-    // subtle drop shadow
-    fill(0, 0, 0, 120);
-    rect(xNow + 3, baseY + 3, this.w, this.h);
-    // solid tag
-    fill(255);
-    rect(xNow, baseY, this.w, this.h);
+
+    if (this.bgImg) {
+      // Bookmark PNG underlay
+      image(this.bgImg, xNow, baseY, this.w, this.h);
+    } else {
+      // Fallback: white rectangle style
+      fill(0, 0, 0, 120);
+      rect(xNow + 3, baseY + 3, this.w, this.h);
+      fill(255);
+      rect(xNow, baseY, this.w, this.h);
+    }
+
     if (this.font) textFont(this.font);
     textSize(30);
     noStroke();

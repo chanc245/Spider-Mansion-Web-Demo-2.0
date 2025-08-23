@@ -52,6 +52,10 @@ class Day0Quiz {
     this.notebookClues = loadImage("assets/quiz/notebook_Clues.png");
     this.notebookRules = loadImage("assets/quiz/notebook_Rules.png");
     this.userFont = loadFont("assets/fonts/BradleyHandITCTT-Bold.ttf");
+
+    this.imgBookmarkClues = loadImage("assets/quiz/bookmark_clues.png");
+    this.imgBookmarkRules = loadImage("assets/quiz/bookmark_rules.png");
+    this.imgBookmarkLogs = loadImage("assets/quiz/bookmark_logs.png");
   }
 
   setup() {
@@ -72,6 +76,7 @@ class Day0Quiz {
       font: this.userFont,
       slideDur: 300,
       aniDirection: "LTR",
+      bgImg: this.imgBookmarkClues, // <-- NEW
     });
 
     this.tagRules = new TagOverlayAnimator({
@@ -83,6 +88,7 @@ class Day0Quiz {
       font: this.userFont,
       slideDur: 300,
       aniDirection: "LTR",
+      bgImg: this.imgBookmarkRules, // <-- NEW
     });
 
     this.tagLog = new TagOverlayAnimator({
@@ -94,6 +100,7 @@ class Day0Quiz {
       font: this.userFont,
       slideDur: 300,
       aniDirection: "RTL",
+      bgImg: this.imgBookmarkLogs, // <-- NEW
     });
   }
 

@@ -101,6 +101,97 @@ const vnScript_postQuiz_Bad = [
 
 const vnScript = [
   {
+    charName: "Eva",
+    charCG: "assets/charImg/char_ara_smiling.png",
+    bg: "assets/bg/bg_pr_3f_Attic.png",
+    text: "There you are! I’ve been waiting for you.",
+  },
+  {
+    charName: "Me",
+    charCG: "assets/charImg/char_ara_normal.png",
+    bg: "assets/bg/bg_pr_3f_Attic.png",
+    text: "…Waiting… for me?",
+  },
+  {
+    charName: "Me",
+    charCG: "assets/charImg/char_ara_smiling.png",
+    bg: "assets/bg/bg_pr_3f_Attic.png",
+    text: "Mhm. I knew you’d come.",
+  },
+  {
+    charName: "Eva",
+    charCG: "assets/charImg/char_ara_blank.png",
+    bg: "assets/bg/bg_pr_3f_Attic.png",
+    text: "So, my new nanny.... Are you ready to play with me?",
+  },
+  {
+    charName: "",
+    charCG: "assets/charImg/char_ara_smiling.png",
+    bg: "assets/bg/bg_pr_3f_Attic.png",
+    text: "Let’s.... play a game :)",
+    soundEffect: "assets/audio/bg_ara.mp3",
+  },
+  {
+    charName: "Eva",
+    charCG: "assets/charImg/char_ara_smiling.png",
+    bg: "assets/bg/bg_pr_3f_Attic.png",
+    text: "Don’t worry... I’ll teach you how to play it!",
+  },
+  // =====Explaining Lateral Thinking Puzzle=====
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "Okay, here’s how it works! I’ll give you a scenario, and your job is to figure out the puzzle by asking me questions!",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "Buuut! There’s a catch! I can only answer with YES, NO, or DOESN’T RELATE!",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "…Oh, but since this is your first time, I might give you a little nudge here and there.",
+  },
+  {
+    charName: "Me",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "Scenario? Puzzle?",
+  },
+  {
+    charName: " ",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "I barely had time to process all these rules for a game I’d never even heard of, and before I could ask another question—",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "Ah! Let’s just start! You’ll get the hang of it while we play!",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "Tonight’s question isssss-----",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "I built a house, but the guests didn’t realize it was there and accidentally entered. Afterward, the guests, who were trapped in the house, became my dinner. Who am I?",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "That’s the question! You get 20 questions to ask me!",
+  },
+  {
+    charName: "Eva",
+    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
+    text: "I see you have a notebook with you! Good habit! Now start-------!",
+  },
+];
+
+const vnScript_chris = [
+  {
     charName: "???",
     bg: "assets/bg/bg_pr_ex_MansionFrontDoor.png",
     text: "I checked the address on the old job posting five times… This should be the right place.",

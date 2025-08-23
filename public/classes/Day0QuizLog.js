@@ -45,8 +45,8 @@ class Day0QuizLog {
     this._maxLinesPerBox = 0;
 
     // Nav buttons (screen coords)
-    this.leftBtn = { x: 105, y: 527, w: 50, h: 50 };
-    this.rightBtn = { x: 870, y: 527, w: 50, h: 50 };
+    this.leftBtn = { x: 106 + 1, y: 514 - 4, w: 48, h: 52 };
+    this.rightBtn = { x: 870 - 1, y: 514 - 4, w: 48, h: 52 };
 
     // Eva
     this.eva = null;
@@ -72,6 +72,9 @@ class Day0QuizLog {
 
   preload() {
     this.userFont = loadFont("assets/fonts/BradleyHandITCTT-Bold.ttf");
+
+    this.imgPageFlipLeft = loadImage("assets/ui/ui_pageFlip_left.png");
+    this.imgPageFlipRight = loadImage("assets/ui/ui_pageFlip_right.png");
   }
 
   setup() {
@@ -420,18 +423,39 @@ class Day0QuizLog {
 
   _drawNavButton(btn, label1Based, alpha) {
     push();
-    noStroke();
-    fill(255, 255, 255, 230 * (alpha / 255));
-    rect(btn.x, btn.y, btn.w, btn.h, 8);
-    stroke(0, 0, 0, alpha);
-    strokeWeight(2);
-    noFill();
-    rect(btn.x, btn.y, btn.w, btn.h, 8);
+
+    // Use images instead of rectangles
+    let img = null;
+    if (btn === this.leftBtn) img = this.imgPageFlipLeft;
+    else if (btn === this.rightBtn) img = this.imgPageFlipRight;
+
+    let imgN = 5;
+    if (btn === this.leftBtn) imgN = imgN;
+    else if (btn === this.rightBtn) imgN = -imgN;
+
+    if (img) {
+      // Draw the image with alpha
+      tint(255, alpha);
+      image(img, btn.x, btn.y, btn.w, btn.h);
+      noTint();
+    } else {
+      // Fallback to rectangle if image is missing
+      noStroke();
+      fill(255, 255, 255, 230 * (alpha / 255));
+      rect(btn.x, btn.y, btn.w, btn.h, 8);
+      stroke(0, 0, 0, alpha);
+      strokeWeight(2);
+      noFill();
+      rect(btn.x, btn.y, btn.w, btn.h, 8);
+    }
+
+    // Draw label text on top (optional)
     noStroke();
     fill(0, 0, 0, alpha);
     textAlign(CENTER, CENTER);
     textSize(16);
-    text(label1Based, btn.x + btn.w / 2, btn.y + btn.h / 2 + 1);
+    text(label1Based, btn.x + imgN + btn.w / 2, btn.y + btn.h / 2 - 10);
+
     pop();
   }
 

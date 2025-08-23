@@ -6,10 +6,15 @@ class TagOverlayAnimator {
     w = 100,
     h = 50,
     font = null,
+
+    // NEW: Animation direction helper
+    aniDirection = "LTR", // "LTR" or "RTL"
+
+    // Optional explicit overrides (if omitted we auto-compute from aniDirection)
     overlayStartX = null,
     overlayEndX = null,
+
     slideDur = 300,
-    fadeDur = 200,
   } = {}) {
     this.label = label;
     this.baseX = baseX;
@@ -18,40 +23,52 @@ class TagOverlayAnimator {
     this.h = h;
     this.font = font;
 
-    this.overlayStartX = overlayStartX ?? baseX;
-    this.overlayEndX = overlayEndX ?? baseX + 100;
+    // Auto-compute start/end if not provided, based on direction
+    // LTR:  start = baseX, end = baseX + w
+    // RTL:  start = baseX, end = baseX - w
+    this.aniDirection = aniDirection;
+    const autoStart = this.aniDirection === "RTL" ? baseX - w : baseX;
+    const autoEnd = this.aniDirection === "RTL" ? baseX : baseX + w;
+
+    this.overlayStartX = overlayStartX ?? autoStart;
+    this.overlayEndX = overlayEndX ?? autoEnd;
 
     this.slide = new Tween({ from: 0, to: 1, dur: slideDur });
-    this.fade = new Tween({ from: 255, to: 255, dur: fadeDur });
 
     this.overlayActive = false;
+    // +1 = forward (start->end), -1 = reverse (end->start)
     this.overlayDir = +1;
 
     this.screenRect = { x: -9999, y: -9999, w: 0, h: 0 };
   }
 
+  // Forward (start -> end)
   startEntrance() {
     this.overlayActive = true;
     this.overlayDir = +1;
     this.slide.start(0, 1);
-    this.fade.start(255, 255, 1);
   }
 
-  startReverseWithFade() {
+  // Reverse (end -> start)
+  startReverse() {
     this.overlayActive = true;
     this.overlayDir = -1;
     this.slide.start(0, 1);
-    this.fade.start(0, 255);
+  }
+
+  // Kept for backward compatibility with your existing calls
+  startReverseWithFade() {
+    // same as startReverse, but no fading anymore
+    this.startReverse();
   }
 
   update() {
     const tSlide = this.slide.update();
-    const alpha = this.fade.update();
-    const done = !this.slide.active && !this.fade.active;
-    return { tSlide, alpha, done };
+    const done = !this.slide.active;
+    return { tSlide, done };
   }
 
-  // Stationary tag behind the notebook
+  // Stationary tag behind the notebook (click target)
   drawClickable() {
     const xNow = this.baseX;
     const baseY = this.y - height; // map image-space to screen
@@ -73,7 +90,7 @@ class TagOverlayAnimator {
     pop();
   }
 
-  // Under-notebook animated overlay
+  // Under-notebook animated overlay (now always fully opaque; no fading)
   drawUnder() {
     const t = this.slide.value;
     const baseY = this.y - height;
@@ -84,14 +101,16 @@ class TagOverlayAnimator {
 
     push();
     noStroke();
-    fill(0, 0, 0, 120 * (this.fade.value / 255));
+    // subtle drop shadow
+    fill(0, 0, 0, 120);
     rect(xNow + 3, baseY + 3, this.w, this.h);
-    fill(255, 255, 255, this.fade.value);
+    // solid tag
+    fill(255);
     rect(xNow, baseY, this.w, this.h);
     if (this.font) textFont(this.font);
     textSize(30);
     noStroke();
-    fill(0, 0, 0, this.fade.value);
+    fill(0);
     textAlign(CENTER, CENTER);
     text(this.label, xNow + this.w / 2, baseY + this.h / 2 - 2);
     pop();

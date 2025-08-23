@@ -67,39 +67,33 @@ class Day0Quiz {
       label: "clues",
       baseX: 5,
       y: 750,
-      overlayStartX: 5,
-      overlayEndX: 105,
       w: 100,
       h: 50,
       font: this.userFont,
       slideDur: 300,
-      fadeDur: 200,
+      aniDirection: "LTR",
     });
+
     this.tagRules = new TagOverlayAnimator({
       label: "rules",
       baseX: 5,
       y: 680,
-      overlayStartX: 5,
-      overlayEndX: 105,
       w: 100,
       h: 50,
       font: this.userFont,
       slideDur: 300,
-      fadeDur: 200,
+      aniDirection: "LTR",
     });
 
-    // right-side log tag
     this.tagLog = new TagOverlayAnimator({
       label: "log",
       baseX: 919,
       y: 680,
-      overlayStartX: 819,
-      overlayEndX: 919,
       w: 100,
       h: 50,
       font: this.userFont,
       slideDur: 300,
-      fadeDur: 200,
+      aniDirection: "RTL",
     });
   }
 
@@ -305,6 +299,8 @@ class Day0Quiz {
 
   _playLogEntrance() {
     this.tagLog.slide.value = 0;
+    this.tagLog.startEntrance(); // entrance = start -> end
+    this.tagLog.overlayActive = true;
     this.tagLog.fade.value = 255;
     this.tagLog.startEntrance();
     this.tagLog.overlayActive = true;

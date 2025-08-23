@@ -6,7 +6,7 @@ class Dialog {
     this.y = opts.y ?? 396;
     this.w = opts.w ?? 750;
     this.h = opts.h ?? 141;
-    this.boxImagePath = opts.boxImage ?? "assets/ui_diaBox.png";
+    this.boxImagePath = opts.boxImage ?? "assets/ui/ui_diaBox.png";
 
     // Font
     this.fontPath =

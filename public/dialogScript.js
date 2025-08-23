@@ -107,13 +107,7 @@ const vnScript = [
     text: "There you are! I’ve been waiting for you.",
   },
   {
-    charName: "Me",
-    charCG: "assets/charImg/char_ara_normal.png",
-    bg: "assets/bg/bg_pr_3f_Attic.png",
-    text: "…Waiting… for me?",
-  },
-  {
-    charName: "Me",
+    charName: "Eva",
     charCG: "assets/charImg/char_ara_smiling.png",
     bg: "assets/bg/bg_pr_3f_Attic.png",
     text: "Mhm. I knew you’d come.",
@@ -125,7 +119,7 @@ const vnScript = [
     text: "So, my new nanny.... Are you ready to play with me?",
   },
   {
-    charName: "",
+    charName: "Eva",
     charCG: "assets/charImg/char_ara_smiling.png",
     bg: "assets/bg/bg_pr_3f_Attic.png",
     text: "Let’s.... play a game :)",
@@ -152,11 +146,6 @@ const vnScript = [
     charName: "Eva",
     bg: "assets/bg/bg_pr_3f_Attic_cg.png",
     text: "…Oh, but since this is your first time, I might give you a little nudge here and there.",
-  },
-  {
-    charName: "Me",
-    bg: "assets/bg/bg_pr_3f_Attic_cg.png",
-    text: "Scenario? Puzzle?",
   },
   {
     charName: " ",

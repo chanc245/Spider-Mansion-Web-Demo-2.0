@@ -37,7 +37,7 @@ function preload() {
     y: 396,
     w: 750,
     h: 141,
-    boxImage: "assets/ui_diaBox.png",
+    boxImage: "assets/ui/ui_diaBox.png",
     fadeInMs: 250,
     fadeOutMs: 200,
     cgFadeMs: 250,
@@ -46,7 +46,7 @@ function preload() {
 
     // pass the SFX path (optional tuning)
     clickSfxPath: "assets/audio/ui_clickDia.mp3",
-    clickSfxVolume: 0.5,
+    clickSfxVolume: 0.3,
   });
 
   // preload assets for each class

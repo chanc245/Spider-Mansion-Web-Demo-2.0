@@ -179,8 +179,8 @@ class Dialog {
       textLeading(this.nameSize * 1.25);
       textAlign(CENTER, CENTER);
       noStroke();
-      fill(0, 0, 0, uiA);
-      text(cur.charName, this.x + nr.ox - 7, this.y + nr.oy, nr.w, nr.h);
+      fill(240, 240, 240, uiA);
+      text(cur.charName, this.x + nr.ox - 7, this.y + nr.oy + 3, nr.w, nr.h);
       pop();
     }
 

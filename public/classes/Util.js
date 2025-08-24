@@ -38,8 +38,8 @@ class CrossfadeLayer {
    * @param {Object} opts
    * @param {AssetCache} opts.cache
    * @param {number} opts.fadeMs
-   * @param {(img)=>void} [opts.onChange] optional callback when current asset is ready
-   * @param {(p5.Image)=>void} [opts.drawFn] how to draw the image
+   * @param {(img)=>void} [opts.onChange]
+   * @param {(p5.Image)=>void} [opts.drawFn]
    */
   constructor({ cache, fadeMs = 300, onChange = null, drawFn = null } = {}) {
     this.cache = cache;
@@ -52,24 +52,20 @@ class CrossfadeLayer {
     this.cur = null;
     this.curPath = null;
 
-    this.alpha = 255; // 0..255 for current
+    this.alpha = 255;
     this._fade = new Tween({ from: 255, to: 255, dur: fadeMs });
   }
 
-  /** set a new path; handles none -> img, img -> none, same, diff */
   set(path) {
     const had = !!this.curPath;
 
-    // move current to prev
     this.prev = this.cur;
     this.prevPath = this.curPath;
 
     if (!path) {
-      // fade OUT to nothing if we had an image
       this.cur = null;
       this.curPath = null;
       if (had) this._fade.start(0, 255, this.fadeMs);
-      // render uses (255 - alpha) for prev
       else this._fade.start(255, 255, 1);
       this.alpha = this._fade.value;
       return;
@@ -180,14 +176,14 @@ class Blinker {
   constructor({ periodMs = 900 } = {}) {
     this.periodMs = Math.max(1, periodMs);
     this.enabled = true;
-    this.alpha = 0; // 0..255
+    this.alpha = 0;
     this._t0 = millis();
   }
   setEnabled(on) {
     if (this.enabled === on) return;
     this.enabled = on;
     if (!on) this.alpha = 0;
-    else this._t0 = millis(); // restart phase when re-enabled
+    else this._t0 = millis();
   }
   reset() {
     this._t0 = millis();
@@ -199,8 +195,6 @@ class Blinker {
     }
     const t = (millis() - this._t0) % this.periodMs;
     const phase = t / this.periodMs; // 0..1
-    // Smooth cosine blink (ease-in/out both sides)
-    // alpha = 0..255..0 over one period
     const v = 0.5 - 0.5 * Math.cos(2 * Math.PI * phase);
     this.alpha = Math.floor(v * 255);
   }

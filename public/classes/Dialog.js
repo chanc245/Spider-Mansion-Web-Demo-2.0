@@ -26,7 +26,7 @@ class Dialog {
     this._nameRect = { ox: 14, oy: 9, w: 112, h: 25 };
     this._textRect = { ox: 30, oy: 42, w: 690, h: 80 };
 
-    // Alphas for UI/CG fade (bg is decoupled through CrossfadeLayer)
+    // Alphas for UI/CG fade
     this.fadeInMs = opts.fadeInMs ?? 250;
     this.fadeOutMs = opts.fadeOutMs ?? 200;
     this.alpha = 0;
@@ -141,7 +141,6 @@ class Dialog {
     // BG
     this.bg.render(bgA);
 
-    // if only holding BG after finish, skip CG/UI drawing
     if (!this._running && !this._fadingOut && holdingBg) return;
 
     // CG
@@ -152,8 +151,6 @@ class Dialog {
     const cur = this.script[this.index] || {};
     const hasName = !!(cur.charName && String(cur.charName).trim());
 
-    // Pick box: char if has name, otherwise normal.
-    // Fallback order: dedicated → legacy single → simple rect
     const boxToUse = hasName
       ? this.boxImgChar || this.boxImg || null
       : this.boxImgNormal || this.boxImg || null;

@@ -1,6 +1,6 @@
 class Day0Quiz {
   constructor(opts = {}) {
-    // configurable slide durations (ms)
+    // configurable slide durations (ms
     this.nbInDur = opts.nbInDur ?? 700; // bottom → visible
     this.nbOutDur = opts.nbOutDur ?? 500; // visible → offscreen
 
@@ -18,7 +18,7 @@ class Day0Quiz {
     this.nbSlide = new Tween({ from: 0, to: 1, dur: this.nbInDur }); // dur will be overridden per direction
 
     // state
-    this.quizState = false; // at bottom
+    this.quizState = false;
     this.NOTEBOOK_W = 815;
     this.NOTEBOOK_H = 510;
     this.notebookX = 0;
@@ -42,8 +42,8 @@ class Day0Quiz {
     this._returningToLog = false;
     this._pendingToLogCount = 0;
 
-    this.onScrollEnd = null; // NEW: called when scroll tween finishes
-    this._lastScrollActive = false; // internal edge detector
+    this.onScrollEnd = null;
+    this._lastScrollActive = false;
   }
 
   preload() {
@@ -63,7 +63,6 @@ class Day0Quiz {
     this.notebookY = height - this.NOTEBOOK_H;
     this.currentNotebook = this.notebookLog;
 
-    // initialize scroll target to bottom of attic
     this.scroll.start(0, height);
 
     // left-side tags
@@ -76,7 +75,7 @@ class Day0Quiz {
       font: this.userFont,
       slideDur: 300,
       aniDirection: "LTR",
-      bgImg: this.imgBookmarkClues, // <-- NEW
+      bgImg: this.imgBookmarkClues,
     });
 
     this.tagRules = new TagOverlayAnimator({
@@ -88,7 +87,7 @@ class Day0Quiz {
       font: this.userFont,
       slideDur: 300,
       aniDirection: "LTR",
-      bgImg: this.imgBookmarkRules, // <-- NEW
+      bgImg: this.imgBookmarkRules,
     });
 
     this.tagLog = new TagOverlayAnimator({
@@ -100,7 +99,7 @@ class Day0Quiz {
       font: this.userFont,
       slideDur: 300,
       aniDirection: "RTL",
-      bgImg: this.imgBookmarkLogs, // <-- NEW
+      bgImg: this.imgBookmarkLogs,
     });
   }
 
@@ -109,12 +108,9 @@ class Day0Quiz {
 
     // scroll & attic
     this.yOffset = this.scroll.update();
-    // NEW: fire onScrollEnd when tween stops
     if (this._lastScrollActive && !this.scroll.active) {
-      // report where we ended (true = at bottom; false = at top)
       const atBottom = Math.abs(this.yOffset - height) < 0.5;
-      const visible = atBottom && this.quizState; // notebook meant to be shown
-      // Invoke if provided (pass current quizState and yOffset)
+      const visible = atBottom && this.quizState;
       try {
         this.onScrollEnd?.(this.quizState, this.yOffset, visible);
       } catch {}

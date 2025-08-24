@@ -45,13 +45,6 @@ class TutorialOverlay {
   render() {
     if (!this.active) return;
 
-    // optional dim background
-    push();
-    // noStroke();
-    // fill(0, 180);
-    // rect(0, 0, width, height);
-    pop();
-
     const img = this.images[this.index];
     if (img) {
       push();

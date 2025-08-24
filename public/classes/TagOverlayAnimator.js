@@ -1,8 +1,8 @@
 class TagOverlayAnimator {
   constructor({
     label = "clues",
-    baseX = 5, // stationary/clickable x
-    y = 750, // image-space y (notebook strip)
+    baseX = 5,
+    y = 750,
     w = 100,
     h = 50,
     font = null,
@@ -10,7 +10,7 @@ class TagOverlayAnimator {
     overlayStartX = null,
     overlayEndX = null,
     slideDur = 300,
-    bgImg = null, // <-- NEW: bookmark image
+    bgImg = null,
   } = {}) {
     this.label = label;
     this.baseX = baseX;
@@ -19,10 +19,8 @@ class TagOverlayAnimator {
     this.h = h;
     this.font = font;
 
-    // NEW: background image for bookmark
     this.bgImg = bgImg;
 
-    // Auto-compute start/end if not provided, based on direction
     this.aniDirection = aniDirection;
     const autoStart = this.aniDirection === "RTL" ? baseX - w : baseX;
     const autoEnd = this.aniDirection === "RTL" ? baseX : baseX + w;
@@ -53,7 +51,6 @@ class TagOverlayAnimator {
   }
 
   startReverseWithFade() {
-    // Backward compatibility: same as startReverse (no fading)
     this.startReverse();
   }
 
@@ -66,7 +63,6 @@ class TagOverlayAnimator {
   // Draw stationary tag behind notebook
   drawClickable() {
     const xNow = this.baseX;
-    const baseY = this.y - height; // map image-space to screen
 
     this.screenRect = { x: xNow, y: baseY, w: this.w, h: this.h };
 
@@ -74,7 +70,6 @@ class TagOverlayAnimator {
     noStroke();
 
     if (this.bgImg) {
-      // Use provided PNG as tag background
       image(this.bgImg, xNow, baseY, this.w, this.h);
     } else {
       // Fallback: white rectangle style

@@ -13,7 +13,6 @@ class AudioManager {
     return vol * mv;
   }
 
-  /** Create if needed; only override props explicitly provided. */
   _ensure(path, opts = {}) {
     const hasLoop = Object.prototype.hasOwnProperty.call(opts, "loop");
     const hasVolume = Object.prototype.hasOwnProperty.call(opts, "volume");
@@ -56,12 +55,10 @@ class AudioManager {
     }
   }
 
-  /** Optional preloader; respects provided opts only. */
   load(path, opts = {}) {
     return this._ensure(path, opts);
   }
 
-  /** Play; preserves existing loop/volume unless explicitly passed. */
   play(path, opts = {}) {
     const a = this._ensure(path, opts);
     if (!a) return;
@@ -70,7 +67,6 @@ class AudioManager {
       if (opts.from != null && !Number.isNaN(opts.from)) {
         a.currentTime = Math.max(0, opts.from);
       }
-      // volume handled in _ensure when provided; otherwise preserved
       a.play().catch(() => {});
     } catch {}
   }

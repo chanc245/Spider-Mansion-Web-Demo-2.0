@@ -35,8 +35,8 @@ class Day0QuizLog {
 
     // Outcome + transitions
     this._solved = false;
-    this.onSolved = null; // () => void
-    this.onExhausted = null; // () => void
+    this.onSolved = null;
+    this.onExhausted = null;
     this._ending = false; // linger for 3s after final reply
 
     // Paging
@@ -281,10 +281,6 @@ class Day0QuizLog {
       curPageLines = this._wrapped.slice(thisStart, nextStart);
     }
 
-    // === Reserve space for input ===
-    // If we're on the last page and eligible to show the input,
-    // but there's no spare row left for it, create a new blank page
-    // and place the input there.
     if (
       this.page === this.pageStarts.length - 1 &&
       this._canShowInputThisPage()
@@ -417,7 +413,6 @@ class Day0QuizLog {
     const x = boxX + this.inputPaddingX;
 
     this.input.show();
-    // Position relative to canvas container, not the whole page
     const canvasRect = document.querySelector("canvas").getBoundingClientRect();
     this.input.position(canvasRect.left + x - 15, canvasRect.top + y - 20);
     this.input.size(w, this.inputH);
@@ -426,7 +421,6 @@ class Day0QuizLog {
   _drawNavButton(btn, label1Based, alpha) {
     push();
 
-    // Use images instead of rectangles
     let img = null;
     if (btn === this.leftBtn) img = this.imgPageFlipLeft;
     else if (btn === this.rightBtn) img = this.imgPageFlipRight;

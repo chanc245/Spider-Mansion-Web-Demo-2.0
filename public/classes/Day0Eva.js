@@ -8,7 +8,7 @@ class Day0Eva {
     this.prefix = opts.prefix ?? "Eva";
     this.icon = opts.icon ?? "";
 
-    // Cleaned tone (no emoji, eerie-playful, concise)
+    // character tone
     this.tone =
       opts.tone ??
       `

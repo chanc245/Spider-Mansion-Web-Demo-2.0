@@ -5,8 +5,8 @@ let quiz, logView, dialog;
 let showQuizAfterDialog = true;
 const QUIZ_AUTO_RETURN_DELAY_MS = 3000;
 
-let tutorial; // NEW
-let tutorialHasRun = false; // ensure it only runs once
+let tutorial;
+let tutorialHasRun = false;
 
 // --- Title/End screens ---
 let imgTitle, imgEnd;
@@ -40,7 +40,6 @@ function preload() {
   // --- audio manager ---
   audioMgr = new AudioManager({ masterVolume: 1 });
 
-  // (optional) warm up frequently used SFX/BGM so first play is snappy
   audioMgr.load("assets/audio/bg_ara.mp3", { loop: true, volume: 0.3 });
   audioMgr.load("assets/audio/dia_step.mp3");
   audioMgr.load("assets/audio/ui_clickDia.mp3", { volume: 0.5 });
@@ -80,7 +79,6 @@ function setup() {
   quiz.setup();
   logView.setup();
 
-  // Start with quiz hidden (we begin on Title, then VN)
   quiz.setQuizState(false);
 
   if (typeof vnScript === "undefined") {
@@ -89,7 +87,6 @@ function setup() {
     dialog.setScript(vnScript);
   }
 
-  // When the INTRO VN finishes, reveal the quiz and enter QUIZ state
   dialog.onFinish = () => {
     if (showQuizAfterDialog) {
       quiz.setQuizState(true);
@@ -102,16 +99,12 @@ function setup() {
     setTimeout(() => {
       showQuizAfterDialog = false;
 
-      // Hide the log overlay immediately (optional)
       logView.setActive(false, "page");
 
-      // Start scroll-up animation; when it finishes, start the post-quiz VN
       const startGoodVN = () => {
-        // clear handler so it doesn't fire again later
         quiz.onScrollEnd = null;
         dialog.setScript(vnScript_postQuiz_Good);
 
-        // For post-quiz good path, end on END screen
         dialog.onFinish = () => {
           appState = "END";
         };
@@ -120,9 +113,7 @@ function setup() {
         dialog.start();
       };
 
-      // Set a one-shot listener that waits until the scroll completes at the top
       quiz.onScrollEnd = (state /* false */, yOffset /* ~0 */, visible) => {
-        // We only care about the transition to top (quizState=false)
         if (state === false) startGoodVN();
       };
 
@@ -141,7 +132,6 @@ function setup() {
         quiz.onScrollEnd = null;
         dialog.setScript(vnScript_postQuiz_Bad);
 
-        // For post-quiz bad path, end on END screen
         dialog.onFinish = () => {
           appState = "END";
         };
@@ -157,9 +147,6 @@ function setup() {
       quiz.setQuizState(false);
     }, QUIZ_AUTO_RETURN_DELAY_MS);
   };
-
-  // NOTE: We do NOT auto-start the VN here.
-  // We begin on the TITLE screen. Click → start VN in mousePressed().
 
   _prevNotebookReady = quiz.isNotebookShown();
   _prevNotebookImage = quiz.currentNotebook;
@@ -179,18 +166,14 @@ function draw() {
     return;
   }
 
-  // --- VN layer (updates and renders even if it’s in its end hold-BG window) ---
+  // --- VN layer  ---
   dialog.update();
   dialog.render();
 
-  // --- QUIZ LAYER ---
-  // Hide the quiz entirely while VN is actively running or fading its UI,
-  // but once VN has finished (even if it’s still holding the last BG),
-  // go ahead and render quiz. This prevents a hard cut and avoids a flash.
   if (appState === "QUIZ" && !dialog.isActive()) {
     quiz.update();
 
-    // notebook/log overlay logic (unchanged)
+    // notebook/log overlay logic
     const notebookReady = quiz.isNotebookShown();
     const onLogPage = quiz.currentNotebook === quiz.notebookLog;
     const shouldBeActive = notebookReady && onLogPage;
@@ -206,7 +189,7 @@ function draw() {
 
     logView.render(quiz.notebookX, quiz.notebookY);
 
-    // --- Tutorial overlay: start once when notebook is visible at bottom ---
+    // --- Tutorial overlay ---
     if (notebookReady && !tutorialHasRun && !tutorial.active) {
       tutorial.start();
     }
@@ -218,19 +201,13 @@ function draw() {
 
     if (tutorial && tutorial.active) {
       logView.input.hide();
-    } else if (
-      logView.alpha > 200 && // log view is visible
-      logView._canShowInputThisPage()
-    ) {
+    } else if (logView.alpha > 200 && logView._canShowInputThisPage()) {
       logView.input.show();
     }
 
     _prevNotebookReady = notebookReady;
     _prevNotebookImage = quiz.currentNotebook;
   }
-
-  // If VN still active, we do NOT call quiz.update() at all,
-  // which keeps the attic background hidden under the VN.
 }
 
 function mousePressed() {
@@ -241,7 +218,7 @@ function mousePressed() {
     return;
   }
 
-  // End screen → (no-op). If you want restart behavior, add it here.
+  // End screen → (no-op).
   if (appState === "END") {
     return;
   }
@@ -266,13 +243,11 @@ function mousePressed() {
 }
 
 function keyPressed() {
-  // While VN is running, keys advance the dialog only
   if (dialog.isActive()) {
     dialog.keyPressed(key);
     return;
   }
 
-  // normal quiz hotkeys (optional)
   if (appState === "QUIZ") {
     quiz.keyPressed();
   }

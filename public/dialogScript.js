@@ -148,7 +148,7 @@ const vnScript = [
     text: "…Oh, but since this is your first time, I might give you a little nudge here and there.",
   },
   {
-    charName: " ",
+    charName: "",
     bg: "assets/bg/bg_pr_3f_Attic_cg.png",
     text: "I barely had time to process all these rules for a game I’d never even heard of, and before I could ask another question—",
   },

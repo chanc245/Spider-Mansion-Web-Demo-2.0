@@ -6,7 +6,12 @@ class Dialog {
     this.y = opts.y ?? 396;
     this.w = opts.w ?? 750;
     this.h = opts.h ?? 141;
-    this.boxImagePath = opts.boxImage ?? "assets/ui/ui_diaBox.png";
+
+    this.boxImagePath = opts.boxImage ?? null;
+
+    this.boxImageNormalPath =
+      opts.boxImageNormal ?? "assets/ui/ui_diaBox_nor.png";
+    this.boxImageCharPath = opts.boxImageChar ?? "assets/ui/ui_diaBox_char.png";
 
     // Font
     this.fontPath =
@@ -76,7 +81,11 @@ class Dialog {
   }
 
   preload() {
-    this.boxImg = loadImage(this.boxImagePath);
+    if (this.boxImagePath) this.boxImg = loadImage(this.boxImagePath);
+
+    this.boxImgNormal = loadImage(this.boxImageNormalPath);
+    this.boxImgChar = loadImage(this.boxImageCharPath);
+
     this.font = loadFont(this.fontPath);
   }
 
@@ -140,9 +149,18 @@ class Dialog {
 
     // UI box
     push();
-    if (this.boxImg) {
-      tint(255, uiA);
-      image(this.boxImg, this.x, this.y, this.w, this.h);
+    const cur = this.script[this.index] || {};
+    const hasName = !!(cur.charName && String(cur.charName).trim());
+
+    // Pick box: char if has name, otherwise normal.
+    // Fallback order: dedicated → legacy single → simple rect
+    const boxToUse = hasName
+      ? this.boxImgChar || this.boxImg || null
+      : this.boxImgNormal || this.boxImg || null;
+
+    if (boxToUse) {
+      // tint(255, uiA);
+      image(boxToUse, this.x, this.y, this.w, this.h);
     } else {
       noStroke();
       fill(255, 255, 255, uiA);
@@ -151,8 +169,6 @@ class Dialog {
       noFill();
       rect(this.x, this.y, this.w, this.h, 10);
     }
-
-    const cur = this.script[this.index] || {};
 
     // nameplate
     if (cur.charName) {
@@ -164,7 +180,7 @@ class Dialog {
       textAlign(CENTER, CENTER);
       noStroke();
       fill(0, 0, 0, uiA);
-      text(cur.charName, this.x + nr.ox, this.y + nr.oy, nr.w, nr.h);
+      text(cur.charName, this.x + nr.ox - 7, this.y + nr.oy, nr.w, nr.h);
       pop();
     }
 
@@ -182,7 +198,11 @@ class Dialog {
       const lines = this._wrap(body, tr.w);
       const maxLines = Math.max(1, Math.floor(tr.h / this.leading));
       for (let i = 0; i < Math.min(lines.length, maxLines); i++) {
-        text(lines[i], this.x + tr.ox, this.y + tr.oy + i * this.leading);
+        text(
+          lines[i],
+          this.x + tr.ox + 6,
+          this.y + tr.oy + i * this.leading + 5
+        );
       }
       pop();
     }

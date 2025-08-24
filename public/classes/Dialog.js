@@ -159,7 +159,7 @@ class Dialog {
       : this.boxImgNormal || this.boxImg || null;
 
     if (boxToUse) {
-      // tint(255, uiA);
+      tint(255, uiA);
       image(boxToUse, this.x, this.y, this.w, this.h);
     } else {
       noStroke();

@@ -37,14 +37,13 @@ function preload() {
     y: 396,
     w: 750,
     h: 141,
-    boxImage: "assets/ui/ui_diaBox.png",
-    fadeInMs: 250,
+    boxImageNormal: "assets/ui/ui_diaBox_nor.png",
+    boxImageChar: "assets/ui/ui_diaBox_char.png",
+    fadeInMs: 400,
     fadeOutMs: 200,
     cgFadeMs: 250,
     bgFadeMs: 300,
     holdBgAfterFinishMs: 150,
-
-    // pass the SFX path (optional tuning)
     clickSfxPath: "assets/audio/ui_clickDia.mp3",
     clickSfxVolume: 0.3,
   });

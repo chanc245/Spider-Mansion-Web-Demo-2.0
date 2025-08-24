@@ -94,7 +94,6 @@ You have only 20 chances in total! Don’t waste them....
 Player: "Is it a spider web?"
 Assistant:
 that's correct!
-hehe~ something's caught~
 
 Player: "Spider?"
 Assistant:

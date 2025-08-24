@@ -101,6 +101,9 @@ class Day0QuizLog {
       const v = this.input.value().trim();
       if (!v) return;
 
+      console.log(`---`);
+      console.log(`[USER INPUT] Q${this.questionCount + 1}: ${v}`);
+
       if (this.questionCount >= this.inputLimit) {
         this.input.attribute("placeholder", "Q limit reached (20).");
         this.input.value("");
@@ -127,6 +130,7 @@ class Day0QuizLog {
 
       try {
         const reply = await this.eva.ask(v);
+        console.log(`[AI OUTPUT] Eva: ${reply}`);
         this.notebookContent[
           idx
         ] = `${this.eva.icon}${this.eva.prefix}: ${reply}`;

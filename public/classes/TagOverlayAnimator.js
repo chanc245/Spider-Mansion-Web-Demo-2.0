@@ -63,6 +63,7 @@ class TagOverlayAnimator {
   // Draw stationary tag behind notebook
   drawClickable() {
     const xNow = this.baseX;
+    const baseY = this.y - height;
 
     this.screenRect = { x: xNow, y: baseY, w: this.w, h: this.h };
 

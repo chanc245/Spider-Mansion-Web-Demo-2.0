@@ -417,7 +417,9 @@ class Day0QuizLog {
     const x = boxX + this.inputPaddingX;
 
     this.input.show();
-    this.input.position(x - 15, y - 20);
+    // Position relative to canvas container, not the whole page
+    const canvasRect = document.querySelector("canvas").getBoundingClientRect();
+    this.input.position(canvasRect.left + x - 15, canvasRect.top + y - 20);
     this.input.size(w, this.inputH);
   }
 

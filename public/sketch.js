@@ -74,7 +74,8 @@ function preload() {
 }
 
 function setup() {
-  createCanvas(1024, 576);
+  const cnv = createCanvas(1024, 576);
+  cnv.parent("canvas-container");
 
   quiz.setup();
   logView.setup();

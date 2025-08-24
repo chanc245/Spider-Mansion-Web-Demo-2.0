@@ -5,6 +5,9 @@ let quiz, logView, dialog;
 let showQuizAfterDialog = true;
 const QUIZ_AUTO_RETURN_DELAY_MS = 3000;
 
+let tutorial; // NEW
+let tutorialHasRun = false; // ensure it only runs once
+
 // --- Title/End screens ---
 let imgTitle, imgEnd;
 let appState = "TITLE"; // "TITLE" | "VN" | "QUIZ" | "END"
@@ -14,6 +17,22 @@ let _prevNotebookReady = false;
 let _prevNotebookImage = null;
 
 function preload() {
+  // --- tutorial images ---
+  tutorial = new TutorialOverlay({
+    imagePaths: [
+      "assets/tutorial/tut_1.png",
+      "assets/tutorial/tut_2.png",
+      "assets/tutorial/tut_3.png",
+      "assets/tutorial/tut_4.png",
+      "assets/tutorial/tut_5.png",
+      "assets/tutorial/tut_6.png",
+      "assets/tutorial/tut_7.png",
+      "assets/tutorial/tut_8.png",
+    ],
+    fadeOutMs: 450,
+  });
+  tutorial.preload();
+
   // --- title/end images ---
   imgTitle = loadImage("assets/cg_titlePage.png");
   imgEnd = loadImage("assets/cg_endPage.png");
@@ -186,6 +205,25 @@ function draw() {
 
     logView.render(quiz.notebookX, quiz.notebookY);
 
+    // --- Tutorial overlay: start once when notebook is visible at bottom ---
+    if (notebookReady && !tutorialHasRun && !tutorial.active) {
+      tutorial.start();
+    }
+    tutorial.update();
+    tutorial.render();
+    if (tutorial.done && !tutorialHasRun) {
+      tutorialHasRun = true;
+    }
+
+    if (tutorial && tutorial.active) {
+      logView.input.hide();
+    } else if (
+      logView.alpha > 200 && // log view is visible
+      logView._canShowInputThisPage()
+    ) {
+      logView.input.show();
+    }
+
     _prevNotebookReady = notebookReady;
     _prevNotebookImage = quiz.currentNotebook;
   }
@@ -204,6 +242,12 @@ function mousePressed() {
 
   // End screen → (no-op). If you want restart behavior, add it here.
   if (appState === "END") {
+    return;
+  }
+
+  // If tutorial is active, it captures the click
+  if (appState === "QUIZ" && tutorial && tutorial.active) {
+    tutorial.mousePressed();
     return;
   }
 

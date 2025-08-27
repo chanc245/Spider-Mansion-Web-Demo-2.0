@@ -1,5 +1,7 @@
 // ---------- AI SERVER ----------
 
+// ENV variable: OPENAI_MODEL, OPENAI_API_KEY
+
 import express from "express";
 import cors from "cors";
 import { fileURLToPath } from "url";
@@ -25,15 +27,22 @@ const openai = new OpenAI({
 });
 
 async function getGptResultAsString(input) {
-  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const model = process.env.OPENAI_MODEL || "gpt-4.1";
 
   const resp = await openai.chat.completions.create({
     model,
     messages: [
-      { role: "system", content: "You are a helpful assistant." },
+      {
+        role: "system",
+        content:
+          "You are Eva in a lateral-thinking puzzle. ALWAYS reply in exactly two lines: " +
+          'first line strictly one of: "yes." | "no." | "doesn\'t relate." | "that\'s correct!", ' +
+          "second line a very short (≤15 words) playful, slightly eerie nudge. No emojis. Never restate the puzzle or reveal the answer unless correct.",
+      },
       { role: "user", content: input },
     ],
     temperature: 0.7,
+    top_p: 0.9,
   });
 
   const text =

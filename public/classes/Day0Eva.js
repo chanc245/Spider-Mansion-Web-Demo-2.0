@@ -99,6 +99,10 @@ Player: "Spider?"
 Assistant:
 that's correct!
 
+Player: "Are you a Spider?"
+Assistant:
+that's correct!
+
 CURRENT PLAYER INPUT
 ${userInput}
 `.trim();

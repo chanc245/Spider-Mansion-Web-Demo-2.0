@@ -26,11 +26,3 @@ Calling all mystery fanatics! Are you ready for a horror quiz game where surviva
 Don't be intimidated! While the stakes are high, with a big brain power, you can overcome any obstacle.
 
 Who knows? You might _just_ survive...
-
-## Dependencies
-
-[OpenAI API](https://platform.openai.com/docs/introduction)
-
-[Gemini API](https://ai.google.dev/)
-
-[node.js](https://nodejs.org/)
